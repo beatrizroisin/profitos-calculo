@@ -1,0 +1,414 @@
+// prisma/schema.prisma — profitOS SaaS v2.1
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  cnpj        String?
+  logoUrl     String?
+  plan        Plan     @default(FREE)
+  planExpires DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users        User[]
+  invites      UserInvite[]
+  clients      Client[]
+  transactions Transaction[]
+  pricings     Pricing[]
+  pricingItems PricingItem[]
+  categories   Category[]
+  imports      ImportLog[]
+  collaborators Collaborator[]
+  collaboratorAllocations CollaboratorAllocation[]
+  runRunConfig RunRunConfig?
+  settings     CompanySettings?
+
+  @@map("companies")
+}
+
+model CompanySettings {
+  id             String  @id @default(cuid())
+  companyId      String  @unique
+  defaultTaxRate Float   @default(6.0)
+  defaultMargin  Float   @default(50.0)
+  hoursPerMonth  Int     @default(160)
+  currency       String  @default("BRL")
+  timezone       String  @default("America/Sao_Paulo")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_settings")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  companyId    String
+  name         String
+  email        String    @unique
+  passwordHash String?   // nullable — Google-only users have no password
+  googleId     String?   @unique
+  avatarUrl    String?
+  role         UserRole  @default(MEMBER)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions Session[]
+  accounts Account[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+// Required by NextAuth for OAuth providers
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model UserInvite {
+  id         String       @id @default(cuid())
+  companyId  String
+  email      String
+  name       String?
+  role       UserRole     @default(MEMBER)
+  token      String       @unique @default(cuid())
+  status     InviteStatus @default(PENDING)
+  expiresAt  DateTime
+  createdAt  DateTime     @default(now())
+  acceptedAt DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@index([token])
+  @@map("user_invites")
+}
+
+model Client {
+  id                 String       @id @default(cuid())
+  companyId          String
+  name               String
+  document           String?
+  email              String?
+  phone              String?
+  serviceType        ServiceType
+  grossRevenue       Float
+  taxRate            Float        @default(6.0)
+  netRevenue         Float
+  isRecurring        Boolean      @default(true)
+  totalInstallments  Int          @default(12)
+  currentInstallment Int          @default(1)
+  startDate          DateTime
+  dueDay             Int          @default(5)
+  status             ClientStatus @default(ACTIVE)
+  riskLevel          RiskLevel    @default(LOW)
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions Transaction[] @relation("ClientTransactions")
+  collaboratorAllocations CollaboratorAllocation[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("clients")
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  companyId String
+  name      String
+  type      TransactionType
+  color     String?         @default("#6B7280")
+  isDefault Boolean         @default(false)
+  createdAt DateTime        @default(now())
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([companyId, name, type])
+  @@map("categories")
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  companyId   String
+  clientId    String?
+  categoryId  String?
+  importId    String?
+  type        TransactionType
+  description String
+  amount      Float
+  grossAmount Float?
+  taxRate     Float?
+  dueDate     DateTime
+  paidAt      DateTime?
+  isRecurring Boolean         @default(false)
+  status      PaymentStatus   @default(PENDING)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client   Client?    @relation("ClientTransactions", fields: [clientId], references: [id], onDelete: SetNull)
+  category Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  import   ImportLog? @relation(fields: [importId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([companyId, type])
+  @@index([companyId, dueDate])
+  @@map("transactions")
+}
+
+model ImportLog {
+  id           String       @id @default(cuid())
+  companyId    String
+  fileName     String
+  importType   ImportType
+  totalRows    Int          @default(0)
+  validRows    Int          @default(0)
+  errorRows    Int          @default(0)
+  status       ImportStatus @default(PROCESSING)
+  errorDetails String?      @db.Text
+  createdAt    DateTime     @default(now())
+  completedAt  DateTime?
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([companyId])
+  @@map("import_logs")
+}
+
+model Pricing {
+  id            String        @id @default(cuid())
+  companyId     String
+  name          String
+  clientName    String?
+  status        PricingStatus @default(DRAFT)
+  taxRate       Float         @default(15.0)
+  marginRate    Float         @default(50.0)
+  hoursPerMonth Int           @default(160)
+  totalCost     Float         @default(0)
+  totalSale     Float         @default(0)
+  notes         String?
+  validUntil    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   PricingItem[]
+
+  @@index([companyId])
+  @@map("pricings")
+}
+
+model PricingItem {
+  id              String  @id @default(cuid())
+  companyId       String
+  pricingId       String
+  serviceName     String
+  peopleCount     Int     @default(1)
+  costPerHour     Float
+  projectPct      Float   @default(0)
+  hoursAllocated  Float   @default(0)
+  fullHourCost    Float   @default(0)
+  pricePerHour    Float   @default(0)
+  priceWithTax    Float   @default(0)
+  teamMonthlyCost Float   @default(0)
+  projectRevenue  Float   @default(0)
+  saleByHour      Float   @default(0)
+  sortOrder       Int     @default(0)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pricing Pricing @relation(fields: [pricingId], references: [id], onDelete: Cascade)
+
+  @@index([pricingId])
+  @@map("pricing_items")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum Plan { FREE STARTER PRO AGENCY ENTERPRISE }
+
+enum UserRole {
+  OWNER   // dono — tudo: convida, muda roles, deleta usuários
+  ADMIN   // admin — tudo exceto deletar empresa/outros admins
+  MANAGER // gerente — clientes, precificação, relatórios (sem configurações)
+  MEMBER  // membro — dashboards + leitura (sem edição)
+  VIEWER  // visualizador — somente leitura, sem exportar
+}
+
+enum InviteStatus   { PENDING ACCEPTED EXPIRED CANCELLED }
+enum ImportType     { INCOME EXPENSE }
+enum ImportStatus   { PROCESSING COMPLETED FAILED }
+enum ServiceType    { ECOMMERCE_MANAGEMENT PERFORMANCE_MEDIA SEO_CONTENT WEB_DEVELOPMENT CRM_AUTOMATION STRATEGIC_CONSULTING SOCIAL_MEDIA DESIGN_UX BPO_FINANCIAL OUTSOURCING OTHER }
+enum ClientStatus   { ACTIVE INACTIVE PROSPECT CHURNED }
+enum RiskLevel      { LOW MEDIUM HIGH CRITICAL }
+enum TransactionType{ INCOME EXPENSE }
+enum PaymentStatus  { PENDING PAID OVERDUE CANCELLED }
+enum PricingStatus  { DRAFT SENT APPROVED REJECTED EXPIRED }
+
+// ─── ALOCAÇÃO DE COLABORADORES ───────────────────────────────────────────────
+
+model Collaborator {
+  id           String   @id @default(cuid())
+  companyId    String
+  name         String
+  position     String
+  type         CollaboratorType @default(PJ)
+  salary       Float
+  hoursPerMonth Int     @default(160)
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  runRunLink  RunRunUserLink?
+  company     Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  allocations CollaboratorAllocation[]
+
+  @@index([companyId])
+  @@map("collaborators")
+}
+
+model CollaboratorAllocation {
+  id             String  @id @default(cuid())
+  companyId      String
+  collaboratorId String
+  clientId       String
+  serviceType    String
+  allocationPct  Float?  // % do tempo — nullable se usar horas
+  allocationHours Float? // horas/mês — nullable se usar %
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  collaborator Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([collaboratorId])
+  @@index([clientId])
+  @@map("collaborator_allocations")
+}
+
+enum CollaboratorType { PJ CLT }
+
+// ─── RUNRUN.IT INTEGRATION ────────────────────────────────────────────────────
+
+model RunRunConfig {
+  id            String   @id @default(cuid())
+  companyId     String   @unique
+  appKey        String   // encrypted
+  userToken     String   // encrypted
+  syncFrequency String   @default("daily") // manual | daily | weekly
+  lastSyncAt    DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userLinks RunRunUserLink[]
+  syncLogs  RunRunSyncLog[]
+
+  @@map("runrun_configs")
+}
+
+model RunRunUserLink {
+  id             String @id @default(cuid())
+  companyId      String
+  configId       String
+  collaboratorId String
+  runrunUserId   String  // RunRun.it user id (slug)
+  runrunEmail    String?
+  runrunName     String?
+  createdAt      DateTime @default(now())
+
+  config       RunRunConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  collaborator Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+
+  @@unique([configId, collaboratorId])
+  @@index([companyId])
+  @@map("runrun_user_links")
+}
+
+model RunRunSyncLog {
+  id         String   @id @default(cuid())
+  companyId  String
+  configId   String
+  status     String   // success | failed | partial
+  syncedAt   DateTime @default(now())
+  hoursCount Int      @default(0)
+  errorMsg   String?  @db.Text
+  payload    String?  @db.Text // JSON snapshot
+
+  config RunRunConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("runrun_sync_logs")
+}
+
+model RunRunTimeEntry {
+  id             String   @id @default(cuid())
+  companyId      String
+  collaboratorId String
+  runrunUserId   String
+  runrunTaskId   String?
+  runrunClientId String?
+  clientId       String?  // profitOS client id (matched by name)
+  hoursWorked    Float
+  dateWorked     DateTime
+  taskTitle      String?
+  clientName     String?
+  syncedAt       DateTime @default(now())
+
+  @@index([companyId])
+  @@index([collaboratorId])
+  @@index([dateWorked])
+  @@map("runrun_time_entries")
+}

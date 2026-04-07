@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand:     #1A6B4A;
+  --brand-dk:  #0F4A33;
+  --brand-lt:  #E8F5EF;
+  --danger:    #DC3545;
+  --danger-lt: #FEE8EA;
+  --warning:   #E67E22;
+  --warning-lt:#FEF0E6;
+  --info:      #2563EB;
+  --info-lt:   #EEF3FF;
+  --purple:    #7C3AED;
+  --purple-lt: #F5F3FF;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeIn 0.2s ease-out; }
+
+/* Tabular nums everywhere they matter */
+.tabular { font-variant-numeric: tabular-nums; }
