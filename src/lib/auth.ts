@@ -49,20 +49,18 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async jwt({ token, user, trigger }) {
-      // On sign-in or session update, fetch fresh data from DB
-      if (user?.email || trigger === 'update') {
-        const email = user?.email || token.email as string;
-        if (email) {
+      async jwt({ token, user, trigger }) {
+        if (user || trigger === 'update') {
+          const email = user?.email || token.email;
           const dbUser = await prisma.user.findUnique({
             where: { email },
-            include: { company: { select: { id:true, name:true } } },
+            include: { company: true },
           });
+
           if (dbUser) {
-            token.id          = dbUser.id;
-            token.companyId   = dbUser.companyId;
-            token.companyName = dbUser.company?.name ?? '';
-            token.role        = dbUser.role;
+            token.id = dbUser.id;
+            token.companyId = dbUser.companyId; // Se for novo, isso será null
+            token.role = dbUser.role;
             token.avatarUrl   = dbUser.avatarUrl ?? (user as any)?.image ?? '';
             token.isActive    = dbUser.isActive;
           }
@@ -87,8 +85,9 @@ export const authOptions: NextAuthOptions = {
 
   providers: [
     GoogleProvider({
-      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: 'credentials',

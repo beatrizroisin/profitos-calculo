@@ -14,7 +14,7 @@ function LoginContent() {
   const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(params.get('error') ? 'Acesso negado ou conta inativa.' : '');
+  const [error, setError] = useState(params.get('error') === 'CredentialsSignin' ? 'E-mail ou senha incorretos.' : '');
   const [loading, setLoading] = useState(false);
   const [gLoading, setGLoading] = useState(false);
 
@@ -41,7 +41,12 @@ function LoginContent() {
 
   async function handleGoogle() {
     setGLoading(true);
-    await signIn('google', { callbackUrl: '/dashboard' });
+    try {
+      await signIn('google', { callbackUrl: '/dashboard' });
+    } catch (err) {
+      setError('Erro ao conectar com o Google. Tente novamente.');
+      setGLoading(false);
+    }
   }
 
   const inp = "w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1A6B4A]/20 focus:border-[#1A6B4A] bg-white text-gray-800 placeholder-gray-400 transition-colors";
@@ -122,12 +127,12 @@ function LoginContent() {
         <Link href="/register" className="text-sm text-[#1A6B4A] font-medium hover:underline">Criar empresa →</Link>
       </div>
 
-      <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+      {/* <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
         <p className="text-xs font-medium text-gray-500 mb-1">Credenciais de demonstração:</p>
         <p className="text-xs text-gray-600">admin@demo.com / Demo@2026 — Proprietário</p>
         <p className="text-xs text-gray-600">gerente@demo.com / Demo@2026 — Gerente</p>
         <p className="text-xs text-gray-600">viewer@demo.com / Demo@2026 — Visualizador</p>
-      </div>
+      </div> */}
     </div>
   );
 }

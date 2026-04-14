@@ -59,6 +59,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
  const labels: Record<string, string> = {
   '30d': '30 dias',
+  '60d': '60 dias',
   '90d': '90 dias',
   '6m': '6 meses',
   '1y': '1 ano',
