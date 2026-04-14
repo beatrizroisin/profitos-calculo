@@ -81,7 +81,12 @@ const periodLabel = labels[period] || '30 dias';
       {/* KPIs row 2 */}
       <Grid4>
         <KPICard label="Receita bruta/mês"    value={BRL(monthlyGross)}    sub={`líquido: ${BRL(monthlyNet)}`} />
-        <KPICard label="Folha PJ / saídas"    value={pct(folhaPJ / monthlyExpense * 100)} sub="limite saudável: 50%" color={folhaPJ / monthlyExpense > 0.50 ? 'red' : 'amber'} />
+       <KPICard 
+          label="Folha PJ / saídas" 
+          value={monthlyExpense > 0 ? pct((folhaPJ / monthlyExpense) * 100) : "0%"} 
+          sub="limite saudável: 50%" 
+          color={monthlyExpense > 0 && (folhaPJ / monthlyExpense) > 0.50 ? 'red' : 'amber'} 
+        />
         <KPICard label="Clientes ativos"      value={String(active.length)} sub={`de ${clients.length} cadastrados`} color="blue" />
         <KPICard label="Receita recorrente"   value={BRL(recurringRev)}    sub="mensal garantida" color="green" />
       </Grid4>
