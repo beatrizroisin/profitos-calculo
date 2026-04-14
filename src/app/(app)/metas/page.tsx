@@ -13,10 +13,23 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
   const [margem,  setMargem]  = useState(20);
   const [ticket,  setTicket]  = useState(0);
 
-  const period = searchParams?.period || '90d';
-  const months = { '90d':3,'6m':6,'1y':12,'2y':24 }[period] || 3;
-  const periodLabel = { '90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' }[period] || '90 dias';
+  const period      = searchParams?.period || '30d'; 
+  const months      = { 
+    '30d': 1,   
+    '90d': 3, 
+    '6m': 6, 
+    '1y': 12, 
+    '2y': 24 
+  }[period] || 1;
 
+  const periodLabel = { 
+    '30d': '30 dias', 
+    '90d': '90 dias', 
+    '6m': '6 meses', 
+    '1y': '1 ano', 
+    '2y': '2 anos' 
+  }[period] || '30 dias';
+  
   useEffect(() => {
     Promise.all([
       fetch('/api/clients').then(r=>r.json()),

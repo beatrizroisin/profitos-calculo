@@ -8,13 +8,21 @@ import Link from 'next/link';
 
 interface Props { searchParams: { period?: string } }
 
-const MONTHS_MAP: Record<string, number> = { '90d': 3, '6m': 6, '1y': 12, '2y': 24 };
+const MONTHS_MAP: Record<string, number> = { 
+  '30d': 1, 
+  '90d': 3, 
+  '6m': 6, 
+  '1y': 12, 
+  '2y': 24 
+};
 
 export default async function DashboardPage({ searchParams }: Props) {
   const session   = await getServerSession(authOptions);
   const companyId = (session!.user as any).companyId;
-  const period    = searchParams.period || '90d';
-  const months    = MONTHS_MAP[period] || 3;
+  const period = searchParams.period || '30d';
+  const months    = MONTHS_MAP[period] || 1;
+
+  
 
   const [clients, transactions] = await Promise.all([
     prisma.client.findMany({ where: { companyId } }),
@@ -48,7 +56,15 @@ export default async function DashboardPage({ searchParams }: Props) {
     LOW: 'green', MEDIUM: 'amber', HIGH: 'red', CRITICAL: 'red',
   };
 
-  const periodLabel = period === '90d' ? '90 dias' : period === '6m' ? '6 meses' : period === '1y' ? '1 ano' : '2 anos';
+ const labels: Record<string, string> = {
+  '30d': '30 dias',
+  '90d': '90 dias',
+  '6m': '6 meses',
+  '1y': '1 ano',
+  '2y': '2 anos'
+};
+const periodLabel = labels[period] || '30 dias';
+
 
   return (
     <div className="space-y-5">

@@ -10,10 +10,16 @@ export async function GET(req: NextRequest) {
   const companyId = (session.user as any).companyId;
 
   const { searchParams } = new URL(req.url);
-  const period = searchParams.get('period') || '90d';
+  const period = searchParams.get('period') || '30d'; // Alterado para 30d
 
-  const monthsMap: Record<string, number> = { '90d': 3, '6m': 6, '1y': 12, '2y': 24 };
-  const months = monthsMap[period] || 3;
+  const monthsMap: Record<string, number> = { 
+    '30d': 1, 
+    '90d': 3, 
+    '6m': 6, 
+    '1y': 12, 
+    '2y': 24 
+  };
+  const months = monthsMap[period] || 1;
 
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
