@@ -235,6 +235,7 @@ export async function POST(req: NextRequest) {
       const sheetName = wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
       rows = XLSX.utils.sheet_to_json(ws, {
+        range: 1,
         raw: true,
         defval: '',
         blankrows: false,
