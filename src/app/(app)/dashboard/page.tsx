@@ -10,6 +10,7 @@ interface Props { searchParams: { period?: string } }
 
 const MONTHS_MAP: Record<string, number> = { 
   '30d': 1, 
+  '60d': 2,
   '90d': 3, 
   '6m': 6, 
   '1y': 12, 
@@ -40,7 +41,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const expenses = transactions.filter(t => t.type === 'EXPENSE');
   const monthlyExpense = expenses.length > 0
     ? expenses.reduce((s, t) => s + t.amount, 0) / Math.max(1, months)
-    : 241856; // fallback demo value
+    : 0; // fallback demo value
 
   const resultado      = monthlyNet - monthlyExpense;
   const marginPct      = monthlyNet > 0 ? resultado / monthlyNet * 100 : 0;
@@ -58,6 +59,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
  const labels: Record<string, string> = {
   '30d': '30 dias',
+  '60d': '60 dias',
   '90d': '90 dias',
   '6m': '6 meses',
   '1y': '1 ano',
@@ -79,7 +81,12 @@ const periodLabel = labels[period] || '30 dias';
       {/* KPIs row 2 */}
       <Grid4>
         <KPICard label="Receita bruta/mês"    value={BRL(monthlyGross)}    sub={`líquido: ${BRL(monthlyNet)}`} />
-        <KPICard label="Folha PJ / saídas"    value={pct(folhaPJ / monthlyExpense * 100)} sub="limite saudável: 50%" color={folhaPJ / monthlyExpense > 0.50 ? 'red' : 'amber'} />
+       <KPICard 
+          label="Folha PJ / saídas" 
+          value={monthlyExpense > 0 ? pct((folhaPJ / monthlyExpense) * 100) : "0%"} 
+          sub="limite saudável: 50%" 
+          color={monthlyExpense > 0 && (folhaPJ / monthlyExpense) > 0.50 ? 'red' : 'amber'} 
+        />
         <KPICard label="Clientes ativos"      value={String(active.length)} sub={`de ${clients.length} cadastrados`} color="blue" />
         <KPICard label="Receita recorrente"   value={BRL(recurringRev)}    sub="mensal garantida" color="green" />
       </Grid4>
@@ -137,8 +144,13 @@ const periodLabel = labels[period] || '30 dias';
       {/* Quick links */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { href: '/clientes/novo',    label: 'Novo cliente',     icon: '👤', color: 'bg-blue-50 text-blue-700'    },
-          { href: '/precificacao/nova',label: 'Nova precificação', icon: '📊', color: 'bg-green-50 text-green-700'  },
+         { 
+          href: '/clientes?new=true', // Adicionamos ?new=true aqui
+          label: 'Novo cliente', 
+          icon: '👤', 
+          color: 'bg-blue-50 text-blue-700' 
+        },
+          { href: '/precificacao',label: 'Nova precificação', icon: '📊', color: 'bg-green-50 text-green-700'  },
           { href: '/metas',            label: 'Ver metas',        icon: '🎯', color: 'bg-purple-50 text-purple-700' },
           { href: '/simulador',        label: 'Simular cenário',  icon: '🔮', color: 'bg-orange-50 text-orange-700' },
         ].map(item => (

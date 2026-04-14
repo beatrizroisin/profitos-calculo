@@ -10,10 +10,11 @@ export async function GET(req: NextRequest) {
   const companyId = (session.user as any).companyId;
 
   const { searchParams } = new URL(req.url);
-  const period = searchParams.get('period') || '30d'; // Alterado para 30d
+  const period = searchParams.get('period') || '30d'; 
 
   const monthsMap: Record<string, number> = { 
     '30d': 1, 
+    '60d': 2,
     '90d': 3, 
     '6m': 6, 
     '1y': 12, 
@@ -66,11 +67,12 @@ export async function GET(req: NextRequest) {
   }
   // Fill from client recurring revenue for income months
   for (const month of Object.keys(monthlyData)) {
-    monthlyData[month].income = totalNetRevenue * (1 + (Math.random() * 0.08 - 0.04));
-    monthlyData[month].expense = (totalExpenses / months) * (1 + (Math.random() * 0.05 - 0.025));
+    // ALTERAR: Remova o Math.random para evitar "sujeira" visual no gráfico
+    monthlyData[month].income = totalNetRevenue; 
+    monthlyData[month].expense = months > 0 ? (totalExpenses / months) : 0;
   }
 
-  const resultado = totalNetRevenue - totalExpenses / months;
+  const resultado = totalNetRevenue - (months > 0 ? totalExpenses / months : 0);
   const ticketMedio = activeClients.length > 0 ? totalNetRevenue / activeClients.length : 0;
 
   // Top clients

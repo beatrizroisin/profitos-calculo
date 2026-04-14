@@ -16,7 +16,7 @@ const LBL = 'block text-[9.5px] font-medium text-gray-400 uppercase tracking-wid
 export default function SimuladorPage({ searchParams }: { searchParams: { period?: string } }) {
   const period = searchParams?.period || '30d';
   const months = Math.min(
-    { '30d': 1, '90d': 3, '6m': 6, '1y': 12, '2y': 24 }[period] || 1, 
+    { '30d': 1, '60d': 2, '90d': 3, '6m': 6, '1y': 12, '2y': 24 }[period] || 1, 
     12
   );
   const [tab,     setTab]     = useState<SimId>('contratar');

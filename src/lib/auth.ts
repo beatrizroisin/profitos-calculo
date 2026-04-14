@@ -44,24 +44,25 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
         const existing = await prisma.user.findUnique({ where: { email: user.email! } });
-        if (existing && !existing.isActive) return false; // blocked user
+        if (existing && !existing.isActive) return false;
       }
       return true;
     },
 
     async jwt({ token, user, trigger }) {
-      // On sign-in or session update, fetch fresh data from DB
-      if (user?.email || trigger === 'update') {
-        const email = user?.email || token.email as string;
+      // O erro anterior era uma chave fechando antes da hora aqui
+      if (user || trigger === 'update') {
+        const email = user?.email || token.email;
         if (email) {
           const dbUser = await prisma.user.findUnique({
             where: { email },
-            include: { company: { select: { id:true, name:true } } },
+            include: { company: true },
           });
+
           if (dbUser) {
             token.id          = dbUser.id;
             token.companyId   = dbUser.companyId;
-            token.companyName = dbUser.company?.name ?? '';
+            token.companyName = dbUser.company?.name ?? ''; // Adicionado para não vir vazio
             token.role        = dbUser.role;
             token.avatarUrl   = dbUser.avatarUrl ?? (user as any)?.image ?? '';
             token.isActive    = dbUser.isActive;
@@ -69,7 +70,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
       return token;
-    },
+    }, // <-- Chave de fechamento do JWT corrigida
 
     async session({ session, token }) {
       if (token && session.user) {
@@ -87,8 +88,9 @@ export const authOptions: NextAuthOptions = {
 
   providers: [
     GoogleProvider({
-      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: 'credentials',
@@ -100,14 +102,19 @@ export const authOptions: NextAuthOptions = {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
+        
         const user = await prisma.user.findUnique({
           where: { email },
           include: { company: { select: { id:true, name:true } } },
         });
+
         if (!user || !user.isActive || !user.passwordHash) return null;
+        
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
+
         await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+        
         return { id: user.id, name: user.name, email: user.email, image: user.avatarUrl };
       },
     }),

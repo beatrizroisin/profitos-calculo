@@ -7,6 +7,7 @@ import { ROLE_LABELS } from '@/lib/auth';
 const PERIOD_PAGES = ['/dashboard', '/metas', '/churn', '/ceo', '/simulador'];
 const PERIODS = [
   { key: '30d', label: '30 dias' },
+  { key: '60d', label: '60 dias' },
   { key: '90d', label: '90 dias' },
   { key: '6m', label: '6 meses' },
   { key: '1y', label: '1 ano' },
