@@ -5,7 +5,7 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   experimental: {
-    serverComponentsExternalPackages: [
+   serverComponentsExternalPackages: [
       '@prisma/client',
       'bcryptjs',
       'xlsx',       // must be external — uses fs/buffer APIs not available in edge

@@ -1,5 +1,10 @@
 // POST /api/imports — parse xlsx/csv and insert transactions
 // GET  /api/imports — list import history
+
+// Allow files up to 10 MB (default Next.js App Router limit is ~4 MB)
+export const maxDuration = 60; // 60s timeout for large files on Vercel
+export const dynamic     = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
