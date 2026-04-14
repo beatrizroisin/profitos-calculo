@@ -139,8 +139,13 @@ const periodLabel = labels[period] || '30 dias';
       {/* Quick links */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { href: '/clientes/novo',    label: 'Novo cliente',     icon: '👤', color: 'bg-blue-50 text-blue-700'    },
-          { href: '/precificacao/nova',label: 'Nova precificação', icon: '📊', color: 'bg-green-50 text-green-700'  },
+         { 
+          href: '/clientes?new=true', // Adicionamos ?new=true aqui
+          label: 'Novo cliente', 
+          icon: '👤', 
+          color: 'bg-blue-50 text-blue-700' 
+        },
+          { href: '/precificacao',label: 'Nova precificação', icon: '📊', color: 'bg-green-50 text-green-700'  },
           { href: '/metas',            label: 'Ver metas',        icon: '🎯', color: 'bg-purple-50 text-purple-700' },
           { href: '/simulador',        label: 'Simular cenário',  icon: '🔮', color: 'bg-orange-50 text-orange-700' },
         ].map(item => (

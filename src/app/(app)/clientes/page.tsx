@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Card, Grid4, KPICard, Button, Input, Select, Alert, Pill } from '@/components/ui';
 import { BRL, SERVICE_TYPE_LABELS, RISK_LABELS, STATUS_LABELS } from '@/lib/utils';
 
@@ -23,6 +24,7 @@ const STATUS_PILL: Record<string, any> = { ACTIVE: 'green', INACTIVE: 'gray', PR
 const RISK_PILL:   Record<string, any> = { LOW: 'green', MEDIUM: 'amber', HIGH: 'red', CRITICAL: 'red' };
 
 export default function ClientesPage() {
+  const searchParams = useSearchParams();
   const [clients, setClients]       = useState<Client[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
@@ -34,6 +36,12 @@ export default function ClientesPage() {
   const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => { fetchClients(); }, []);
+
+  useEffect(() => {
+    if (searchParams.get('new') === 'true') {
+      openNew();
+    }
+  }, [searchParams])
 
   async function fetchClients() {
     setLoading(true);
