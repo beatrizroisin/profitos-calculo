@@ -10,9 +10,11 @@ export default function ChurnPage({ searchParams }: { searchParams: { period?: s
   const [churnPct, setChurnPct] = useState(5);
   const [cliCount, setCliCount] = useState(0);
   const [ticket,   setTicket]   = useState(0);
-  const period      = searchParams?.period || '30d'; 
-  const months      = { 
-    '30d': 1,   
+ const period      = searchParams?.period || '30d'; 
+
+  const months = { 
+    '30d': 1, 
+    '60d': 2, 
     '90d': 3, 
     '6m': 6, 
     '1y': 12, 
@@ -21,6 +23,7 @@ export default function ChurnPage({ searchParams }: { searchParams: { period?: s
 
   const periodLabel = { 
     '30d': '30 dias', 
+    '60d': '60 dias',
     '90d': '90 dias', 
     '6m': '6 meses', 
     '1y': '1 ano', 

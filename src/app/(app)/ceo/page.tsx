@@ -10,8 +10,10 @@ export default function CeoPage({ searchParams }:{ searchParams:{period?:string}
   const [clients,  setClients]  = useState<Client[]>([]);
   const [stats,    setStats]    = useState<Stats|null>(null);
   const period      = searchParams?.period || '30d'; 
-  const months      = { 
-    '30d': 1,   
+
+  const months = { 
+    '30d': 1, 
+    '60d': 2, 
     '90d': 3, 
     '6m': 6, 
     '1y': 12, 
@@ -20,6 +22,7 @@ export default function CeoPage({ searchParams }:{ searchParams:{period?:string}
 
   const periodLabel = { 
     '30d': '30 dias', 
+    '60d': '60 dias',
     '90d': '90 dias', 
     '6m': '6 meses', 
     '1y': '1 ano', 
@@ -38,12 +41,12 @@ export default function CeoPage({ searchParams }:{ searchParams:{period?:string}
 
   const ativos   = clients.filter(c=>c.status==='ACTIVE');
   const totalLiq = ativos.reduce((s,c)=>s+c.netRevenue,0);
-  const expenses = stats?.totalExpenses ?? 241856;
+  const expenses = stats?.totalExpenses ?? 0;
   const resultado= totalLiq - expenses;
   const deficit  = Math.abs(resultado);
   const folhaPJ  = expenses*0.675;
   const fPct     = (folhaPJ/expenses*100).toFixed(1);
-  const ticket   = ativos.length>0 ? totalLiq/ativos.length : 9835;
+  const ticket   = ativos.length>0 ? totalLiq/ativos.length : 0;
   const topCli   = [...ativos].sort((a,b)=>b.netRevenue-a.netRevenue)[0];
   const topPct   = topCli&&totalLiq>0 ? (topCli.netRevenue/totalLiq*100).toFixed(1) : '0';
   const riscos   = clients.filter(c=>c.riskLevel==='HIGH'||c.riskLevel==='CRITICAL');

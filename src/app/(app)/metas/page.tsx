@@ -14,8 +14,10 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
   const [ticket,  setTicket]  = useState(0);
 
   const period      = searchParams?.period || '30d'; 
-  const months      = { 
-    '30d': 1,   
+
+  const months = { 
+    '30d': 1, 
+    '60d': 2, 
     '90d': 3, 
     '6m': 6, 
     '1y': 12, 
@@ -24,12 +26,13 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
 
   const periodLabel = { 
     '30d': '30 dias', 
+    '60d': '60 dias',
     '90d': '90 dias', 
     '6m': '6 meses', 
     '1y': '1 ano', 
     '2y': '2 anos' 
   }[period] || '30 dias';
-  
+
   useEffect(() => {
     Promise.all([
       fetch('/api/clients').then(r=>r.json()),
@@ -38,10 +41,10 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
       if (Array.isArray(cData)) setClients(cData);
       if (sData && !sData.error) {
         setStats(sData);
-        setCusto(Math.round(sData.totalExpenses) || 241856);
-        setTicket(Math.round(sData.ticketMedio)  || 9835);
+        setCusto(Math.round(sData.totalExpenses) || 0);
+        setTicket(Math.round(sData.ticketMedio)  || 0);
       } else {
-        setCusto(241856); setTicket(9835);
+        setCusto(0); setTicket(0);
       }
     });
   }, []);

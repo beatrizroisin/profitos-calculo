@@ -10,6 +10,7 @@ interface Props { searchParams: { period?: string } }
 
 const MONTHS_MAP: Record<string, number> = { 
   '30d': 1, 
+  '60d': 2,
   '90d': 3, 
   '6m': 6, 
   '1y': 12, 
@@ -40,7 +41,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const expenses = transactions.filter(t => t.type === 'EXPENSE');
   const monthlyExpense = expenses.length > 0
     ? expenses.reduce((s, t) => s + t.amount, 0) / Math.max(1, months)
-    : 241856; // fallback demo value
+    : 0; // fallback demo value
 
   const resultado      = monthlyNet - monthlyExpense;
   const marginPct      = monthlyNet > 0 ? resultado / monthlyNet * 100 : 0;
