@@ -14,7 +14,11 @@ const INP = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gra
 const LBL = 'block text-[9.5px] font-medium text-gray-400 uppercase tracking-wider mb-1.5';
 
 export default function SimuladorPage({ searchParams }: { searchParams: { period?: string } }) {
-  const months = Math.min({ '90d':3,'6m':6,'1y':12,'2y':24 }[searchParams?.period||'90d']||3, 12);
+  const period = searchParams?.period || '30d';
+  const months = Math.min(
+    { '30d': 1, '90d': 3, '6m': 6, '1y': 12, '2y': 24 }[period] || 1, 
+    12
+  );
   const [tab,     setTab]     = useState<SimId>('contratar');
   const [v1,      setV1]      = useState(6000);
   const [v2,      setV2]      = useState(1);
