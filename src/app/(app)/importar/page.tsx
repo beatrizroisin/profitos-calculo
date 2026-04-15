@@ -206,6 +206,47 @@ function UploadCard({ tipo, label, cols, color, icon, onDone }: UploadCardProps)
             </div>
           </div>
 
+          {/* Módulos vinculados automaticamente */}
+          {result.validRows > 0 && (
+            <div className="p-3 bg-[#E8F5EF] border border-[#6EE7B7] rounded-lg text-xs text-[#065F46]">
+              <p className="font-semibold mb-2">
+                {result.validRows} lançamento{result.validRows !== 1 ? 's' : ''} vinculado{result.validRows !== 1 ? 's' : ''} automaticamente a:
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { href: tipo === 'pagar' ? '/pagar' : '/receber',
+                    icon: tipo === 'pagar' ? '💳' : '💰',
+                    label: tipo === 'pagar' ? 'Contas a pagar' : 'Contas a receber',
+                    desc: 'lançamentos inseridos com status Pendente' },
+                  { href: '/dashboard', icon: '📊', label: 'Dashboard',
+                    desc: 'KPIs e gráficos atualizados em tempo real' },
+                  { href: '/metas', icon: '🎯', label: 'Meta de clientes',
+                    desc: 'custo fixo recalculado com dados reais' },
+                  { href: '/ceo', icon: '🧠', label: 'Perguntas do CEO',
+                    desc: 'respostas baseadas nos novos lançamentos' },
+                  { href: '/simulador', icon: '🔮', label: 'Simulador estratégico',
+                    desc: 'resultado base atualizado com custo real' },
+                  { href: '/churn', icon: '⚠️', label: 'Análise de churn',
+                    desc: 'análise de risco com dados financeiros reais' },
+                ].map(m => (
+                  <a key={m.href} href={m.href}
+                    className="flex items-start gap-2 px-2.5 py-2 bg-white rounded-lg border border-[#6EE7B7] hover:border-[#1A6B4A] transition-colors no-underline">
+                    <span className="text-sm flex-shrink-0">{m.icon}</span>
+                    <div className="min-w-0">
+                      <div className="font-medium text-[#065F46] text-[10.5px] truncate">{m.label}</div>
+                      <div className="text-[9.5px] text-[#047857] leading-tight mt-0.5">{m.desc}</div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+              {tipo === 'receber' && (
+                <p className="mt-2 text-[9.5px] text-[#047857]">
+                  💡 Lançamentos com coluna <strong>cliente</strong> são vinculados automaticamente aos clientes cadastrados.
+                </p>
+              )}
+            </div>
+          )}
+
           {result.columnsDetected && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
               <p className="font-medium mb-1">Colunas detectadas:</p>
@@ -276,6 +317,38 @@ export default function ImportarPage() {
         <h1 className="text-lg font-semibold text-gray-900">Importar planilhas</h1>
         <p className="text-sm text-gray-400 mt-0.5">
           Parse real de .xlsx, .xls e .csv — detecção automática de colunas
+        </p>
+      </div>
+
+      {/* Integration chain explanation */}
+      <div className="bg-white border border-gray-100 rounded-2xl p-4">
+        <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Como a importação alimenta o sistema</p>
+        <div className="flex items-start gap-2 overflow-x-auto pb-1">
+          {[
+            { icon: '📁', label: 'Planilha', desc: '.xlsx / .xls / .csv' },
+            { icon: '→', label: '', desc: '' },
+            { icon: '💳', label: 'A pagar / Receber', desc: 'lançamentos com status Pendente' },
+            { icon: '→', label: '', desc: '' },
+            { icon: '📊', label: 'Dashboard', desc: 'KPIs de saídas e resultado' },
+            { icon: '→', label: '', desc: '' },
+            { icon: '🎯', label: 'Metas & CEO', desc: 'custo fixo real por mês' },
+            { icon: '→', label: '', desc: '' },
+            { icon: '🔮', label: 'Simulador', desc: 'resultado base do caixa' },
+          ].map((s, i) => s.icon === '→' ? (
+            <div key={i} className="flex items-center self-start pt-3 flex-shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          ) : (
+            <div key={i} className="flex-shrink-0 text-center min-w-[80px]">
+              <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-base mx-auto mb-1">{s.icon}</div>
+              <p className="text-[10.5px] font-medium text-gray-700">{s.label}</p>
+              <p className="text-[9px] text-gray-400 leading-tight mt-0.5">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10.5px] text-gray-500 mt-3 border-t border-gray-50 pt-3">
+          Após cada importação, o sistema recalcula automaticamente a <strong>média mensal de custo fixo</strong> dos últimos 3 meses e distribui esse valor para o Dashboard, Metas, Perguntas do CEO e Simulador Estratégico.
+          Contas a receber com coluna <strong>cliente</strong> são vinculadas automaticamente ao cliente cadastrado.
         </p>
       </div>
 

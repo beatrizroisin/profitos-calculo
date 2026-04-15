@@ -14,7 +14,7 @@ const INP = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gra
 const LBL = 'block text-[9.5px] font-medium text-gray-400 uppercase tracking-wider mb-1.5';
 
 export default function SimuladorPage({ searchParams }: { searchParams: { period?: string } }) {
-  const period = searchParams?.period || '30d';
+   const period = searchParams?.period || '30d';
   const months = Math.min(
     { '30d': 1, '60d': 2, '90d': 3, '6m': 6, '1y': 12, '2y': 24 }[period] || 1, 
     12
@@ -38,7 +38,9 @@ export default function SimuladorPage({ searchParams }: { searchParams: { period
     ]).then(([cData, sData]) => {
       if (Array.isArray(cData)) setClients(cData.filter((c: any) => c.status === 'ACTIVE'));
       if (sData?.totalRevenue !== undefined) {
-        setBase(sData.totalRevenue - sData.totalExpenses);
+        const expense = sData.monthlyExpense > 0 ? sData.monthlyExpense
+          : sData.folhaTotal > 0 ? sData.folhaTotal : 0;
+        setBase(sData.totalRevenue - expense);
         setTotalRev(sData.totalRevenue);
       }
       setLoading(false);

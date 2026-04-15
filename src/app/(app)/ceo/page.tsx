@@ -4,30 +4,14 @@ import { Alert } from '@/components/ui';
 import { BRL } from '@/lib/utils';
 
 interface Client { netRevenue:number; grossRevenue:number; status:string; riskLevel:string; name:string; }
-interface Stats  { totalExpenses:number; totalRevenue:number; clientCount:number; ticketMedio:number; hasData:boolean; resultado:number; }
+interface Stats  { monthlyExpense:number; totalRevenue:number; clientCount:number; ticketMedio:number; hasExpenseData:boolean; resultado:number; folhaTotal:number; }
 
 export default function CeoPage({ searchParams }:{ searchParams:{period?:string} }) {
   const [clients,  setClients]  = useState<Client[]>([]);
   const [stats,    setStats]    = useState<Stats|null>(null);
-  const period      = searchParams?.period || '30d'; 
-
-  const months = { 
-    '30d': 1, 
-    '60d': 2, 
-    '90d': 3, 
-    '6m': 6, 
-    '1y': 12, 
-    '2y': 24 
-  }[period] || 1;
-
-  const periodLabel = { 
-    '30d': '30 dias', 
-    '60d': '60 dias',
-    '90d': '90 dias', 
-    '6m': '6 meses', 
-    '1y': '1 ano', 
-    '2y': '2 anos' 
-  }[period] || '30 dias';
+  const period      = searchParams?.period||'90d';
+  const months      = {'90d':3,'6m':6,'1y':12,'2y':24}[period]||3;
+  const periodLabel = {'90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos'}[period]||'90 dias';
 
   useEffect(()=>{
     Promise.all([
@@ -41,12 +25,13 @@ export default function CeoPage({ searchParams }:{ searchParams:{period?:string}
 
   const ativos   = clients.filter(c=>c.status==='ACTIVE');
   const totalLiq = ativos.reduce((s,c)=>s+c.netRevenue,0);
-  const expenses = stats?.totalExpenses ?? 0;
+  const expenses = stats?.monthlyExpense > 0 ? stats.monthlyExpense
+    : stats?.folhaTotal > 0 ? stats.folhaTotal : 0;
   const resultado= totalLiq - expenses;
   const deficit  = Math.abs(resultado);
   const folhaPJ  = expenses*0.675;
   const fPct     = (folhaPJ/expenses*100).toFixed(1);
-  const ticket   = ativos.length>0 ? totalLiq/ativos.length : 0;
+  const ticket   = ativos.length>0 ? totalLiq/ativos.length : 9835;
   const topCli   = [...ativos].sort((a,b)=>b.netRevenue-a.netRevenue)[0];
   const topPct   = topCli&&totalLiq>0 ? (topCli.netRevenue/totalLiq*100).toFixed(1) : '0';
   const riscos   = clients.filter(c=>c.riskLevel==='HIGH'||c.riskLevel==='CRITICAL');
@@ -71,7 +56,7 @@ export default function CeoPage({ searchParams }:{ searchParams:{period?:string}
 
   return (
     <div className="space-y-4">
-      {stats && !stats.hasData && (
+      {stats && !stats.hasExpenseData && (
         <Alert variant="info">Nenhum lançamento de despesa importado ainda. Usando custo estimado de R$ 241.856. Importe suas contas a pagar para valores reais.</Alert>
       )}
       <Alert variant="info">Respostas calculadas com {ativos.length} clientes ativos e projeção de {periodLabel}.</Alert>
