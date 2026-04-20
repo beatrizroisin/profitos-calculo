@@ -1,4 +1,4 @@
-// Returns real totals from DB for use in metas/churn/ceo/simulador
+// src/app/api/company-stats/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -9,33 +9,73 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const u = session.user as any;
 
-  const [expenses, clients] = await Promise.all([
-    prisma.transaction.aggregate({
-      where: { companyId: u.companyId, type: 'EXPENSE' },
-      _sum: { amount: true },
-      _count: true,
-    }),
+  const [clients, collaborators, allocations] = await Promise.all([
     prisma.client.findMany({
-      where: { companyId: u.companyId, status: 'ACTIVE' },
-      select: { netRevenue: true },
+      where:  { companyId: u.companyId, status: 'ACTIVE' },
+      select: { id: true, name: true, netRevenue: true, grossRevenue: true, riskLevel: true, isRecurring: true },
+    }),
+    prisma.collaborator.findMany({
+      where:  { companyId: u.companyId, isActive: true },
+      select: { salary: true, type: true },
+    }),
+    prisma.collaboratorAllocation.findMany({
+      where:  { companyId: u.companyId },
+      // CORREÇÃO: Buscamos os campos de alocação e o salário do colaborador relacionado
+      select: { 
+        allocationPct: true, 
+        allocationHours: true,
+        collaborator: {
+          select: { salary: true, hoursPerMonth: true }
+        }
+      },
     }),
   ]);
 
-  const totalExpenses  = expenses._sum.amount ?? 0;
-  const expenseCount   = expenses._count;
-  const totalRevenue   = clients.reduce((s, c) => s + c.netRevenue, 0);
-  const clientCount    = clients.length;
-  const ticketMedio    = clientCount > 0 ? totalRevenue / clientCount : 0;
-  const resultado      = totalRevenue - totalExpenses;
+  const totalRevenue  = clients.reduce((s, c) => s + c.netRevenue, 0);
+  const totalGross    = clients.reduce((s, c) => s + c.grossRevenue, 0);
+  const clientCount   = clients.length;
+  const ticketMedio   = clientCount > 0 ? totalRevenue / clientCount : 0;
 
-  // If no transactions yet, return 0 (user will set manually in UI)
+  const folhaTotal    = collaborators.reduce((s, c) => s + c.salary, 0);
+  const monthlyExpense = folhaTotal;
+
+  const resultado     = totalRevenue - monthlyExpense;
+  const marginPct     = totalRevenue > 0 ? (resultado / totalRevenue) * 100 : 0;
+  const folhaPct      = totalRevenue > 0 ? (folhaTotal / totalRevenue) * 100 : 0;
+
+  // CORREÇÃO: Cálculo dinâmico do custo alocado
+  const custoAlocado  = allocations.reduce((total, a) => {
+    const salary = a.collaborator.salary || 0;
+    
+    if (a.allocationPct) {
+      return total + (salary * (a.allocationPct / 100));
+    } 
+    
+    if (a.allocationHours && a.collaborator.hoursPerMonth) {
+      const hourlyRate = salary / a.collaborator.hoursPerMonth;
+      return total + (hourlyRate * a.allocationHours);
+    }
+    
+    return total;
+  }, 0);
+
+  const riskClients   = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
+  const riskRevenue   = riskClients.reduce((s, c) => s + c.netRevenue, 0);
+
   return NextResponse.json({
-    totalExpenses,
-    expenseCount,
     totalRevenue,
+    totalGross,
     clientCount,
     ticketMedio,
+    folhaTotal,
+    monthlyExpense,
+    folhaPct,
+    custoAlocado,
     resultado,
-    hasData: expenseCount > 0,
+    marginPct,
+    riskClients: riskClients.length,
+    riskRevenue,
+    hasExpenseData: folhaTotal > 0,
+    hasIncomeData:  clientCount > 0,
   });
 }

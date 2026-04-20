@@ -4,13 +4,15 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { ServiceType, ClientStatus, RiskLevel } from '@prisma/client'; // Importe os Enums do Prisma
 
 const clientSchema = z.object({
   name:               z.string().min(2),
-  document:           z.string().optional(),
-  email:              z.string().email().optional().or(z.literal('')),
-  phone:              z.string().optional(),
-  serviceType:        z.string(),
+  document:           z.string().optional().nullable(),
+  email:              z.string().email().optional().or(z.literal('')).nullable(),
+  phone:              z.string().optional().nullable(),
+  // CORREÇÃO: Use z.nativeEnum para que o TS entenda que a string pertence ao Enum do Prisma
+  serviceType:        z.nativeEnum(ServiceType), 
   grossRevenue:       z.number().positive(),
   taxRate:            z.number().min(0).max(100).default(6),
   isRecurring:        z.boolean().default(true),
@@ -18,9 +20,9 @@ const clientSchema = z.object({
   currentInstallment: z.number().int().min(1).default(1),
   startDate:          z.string(),
   dueDay:             z.number().int().min(1).max(31).default(5),
-  status:             z.enum(['ACTIVE','INACTIVE','PROSPECT','CHURNED']).default('ACTIVE'),
-  riskLevel:          z.enum(['LOW','MEDIUM','HIGH','CRITICAL']).default('LOW'),
-  notes:              z.string().optional(),
+  status:             z.nativeEnum(ClientStatus).default(ClientStatus.ACTIVE),
+  riskLevel:          z.nativeEnum(RiskLevel).default(RiskLevel.LOW),
+  notes:              z.string().optional().nullable(),
 });
 
 export async function GET(req: NextRequest) {
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
   const clients = await prisma.client.findMany({
     where: {
       companyId,
-      ...(status ? { status: status as any } : {}),
+      ...(status ? { status: status as ClientStatus } : {}),
       ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
     },
     orderBy: [{ status: 'asc' }, { netRevenue: 'desc' }],
@@ -47,20 +49,25 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const companyId = (session.user as any).companyId;
+  const companyId = (session.user as any).companyId as string;
 
   try {
     const body = await req.json();
-    const data = clientSchema.parse(body);
-    const netRevenue = data.grossRevenue * (1 - data.taxRate / 100);
+    const parsedData = clientSchema.parse(body);
+    
+    // Calculamos a receita líquida
+    const netRevenue = parsedData.grossRevenue * (1 - parsedData.taxRate / 100);
+
+    // Separamos a startDate do resto para converter em objeto Date
+    const { startDate, email, ...rest } = parsedData;
 
     const client = await prisma.client.create({
       data: {
+        ...rest,
         companyId,
-        ...data,
         netRevenue,
-        startDate: new Date(data.startDate),
-        email: data.email || null,
+        startDate: new Date(startDate),
+        email: email || null,
       },
     });
 

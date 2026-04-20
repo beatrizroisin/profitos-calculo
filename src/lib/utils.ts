@@ -67,7 +67,7 @@ export const RISK_LABELS: Record<string, string> = {
 };
 
 export const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: 'Ativo', INACTIVE: 'Inativo', PROSPECT: 'Prospect', CHURNED: 'Churned',
+  ACTIVE: 'Ativo', INACTIVE: 'Inativo', PROSPECT: 'Prospect', PIPELINE: 'Pipeline', CHURNED: 'Churned',
 };
 
 export const PRICING_STATUS_LABELS: Record<string, string> = {

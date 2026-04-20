@@ -14,7 +14,7 @@ export const ROLE_LABELS: Record<string,string> = {
 export const ROLE_DESCRIPTIONS: Record<string,string> = {
   OWNER:   'Acesso total. Gerencia usuários, convida, altera roles e configurações.',
   ADMIN:   'Acesso total ao sistema. Pode convidar e editar roles (exceto OWNER).',
-  MANAGER: 'Acesso a clientes, precificação, transações e importações. Sem configurações.',
+  MANAGER: 'Acesso a clientes, colaboradores, precificação e transações. Sem configurações.',
   MEMBER:  'Visualiza dashboard, clientes e transações. Sem permissão de edição.',
   VIEWER:  'Somente visualiza o dashboard. Sem acesso a dados sensíveis.',
 };
@@ -26,8 +26,8 @@ export function canManageRole(actor: string, target: string): boolean {
 export function hasPermission(role: string, permission: string): boolean {
   const map: Record<string,string[]> = {
     OWNER:   ['*'],
-    ADMIN:   ['dashboard','clients','pricing','transactions','imports','users'],
-    MANAGER: ['dashboard','clients','pricing','transactions','imports'],
+    ADMIN:   ['dashboard','clients','pricing','transactions','users'],
+    MANAGER: ['dashboard','clients','pricing','transactions'],
     MEMBER:  ['dashboard','clients.read','transactions.read'],
     VIEWER:  ['dashboard'],
   };
@@ -44,25 +44,24 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
         const existing = await prisma.user.findUnique({ where: { email: user.email! } });
-        if (existing && !existing.isActive) return false;
+        if (existing && !existing.isActive) return false; // blocked user
       }
       return true;
     },
 
     async jwt({ token, user, trigger }) {
-      // O erro anterior era uma chave fechando antes da hora aqui
-      if (user || trigger === 'update') {
-        const email = user?.email || token.email;
+      // On sign-in or session update, fetch fresh data from DB
+      if (user?.email || trigger === 'update') {
+        const email = user?.email || token.email as string;
         if (email) {
           const dbUser = await prisma.user.findUnique({
             where: { email },
-            include: { company: true },
+            include: { company: { select: { id:true, name:true } } },
           });
-
           if (dbUser) {
             token.id          = dbUser.id;
             token.companyId   = dbUser.companyId;
-            token.companyName = dbUser.company?.name ?? ''; // Adicionado para não vir vazio
+            token.companyName = dbUser.company?.name ?? '';
             token.role        = dbUser.role;
             token.avatarUrl   = dbUser.avatarUrl ?? (user as any)?.image ?? '';
             token.isActive    = dbUser.isActive;
@@ -70,7 +69,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
       return token;
-    }, // <-- Chave de fechamento do JWT corrigida
+    },
 
     async session({ session, token }) {
       if (token && session.user) {
@@ -88,9 +87,8 @@ export const authOptions: NextAuthOptions = {
 
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: 'credentials',
@@ -102,19 +100,14 @@ export const authOptions: NextAuthOptions = {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
-        
         const user = await prisma.user.findUnique({
           where: { email },
           include: { company: { select: { id:true, name:true } } },
         });
-
         if (!user || !user.isActive || !user.passwordHash) return null;
-        
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
-
         await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-        
         return { id: user.id, name: user.name, email: user.email, image: user.avatarUrl };
       },
     }),
