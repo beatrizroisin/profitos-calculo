@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
     }),
     prisma.transaction.findMany({
       where: { companyId, dueDate: { gte: periodStart } },
-      select: { id: true, type: true, amount: true, grossAmount: true, taxAmount: true,
+      // CORREÇÃO: Removido taxAmount (inexistente) e adicionado taxRate para cálculos se necessário
+      select: { id: true, type: true, amount: true, grossAmount: true, taxRate: true,
                 dueDate: true, status: true, isRecurring: true, description: true },
       orderBy: { dueDate: 'asc' },
     }),
@@ -58,20 +59,26 @@ export async function GET(req: NextRequest) {
       label: d.toLocaleDateString('pt-BR', { month: 'short', year: months > 12 ? '2-digit' : undefined }),
     };
   }
-  // Fill from client recurring revenue for income months
+
+  // Preenchimento dos dados mensais
   for (const month of Object.keys(monthlyData)) {
-    monthlyData[month].income = totalNetRevenue * (1 + (Math.random() * 0.08 - 0.04));
-    monthlyData[month].expense = (totalExpenses / months) * (1 + (Math.random() * 0.05 - 0.025));
+    // Aqui usamos os dados reais ou projeções baseadas nos clientes ativos
+    monthlyData[month].income = totalNetRevenue; 
+    monthlyData[month].expense = (totalExpenses / Math.max(months, 1));
   }
 
-  const resultado = totalNetRevenue - totalExpenses / months;
+  const resultado = totalNetRevenue - (totalExpenses / Math.max(months, 1));
   const ticketMedio = activeClients.length > 0 ? totalNetRevenue / activeClients.length : 0;
 
   // Top clients
   const topClients = [...activeClients]
     .sort((a, b) => b.netRevenue - a.netRevenue)
     .slice(0, 6)
-    .map(c => ({ name: c.name, netRevenue: c.netRevenue, pct: c.netRevenue / totalNetRevenue * 100 }));
+    .map(c => ({ 
+      name: c.name, 
+      netRevenue: c.netRevenue, 
+      pct: totalNetRevenue > 0 ? (c.netRevenue / totalNetRevenue * 100) : 0 
+    }));
 
   // Risk clients
   const riskClients = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
@@ -87,7 +94,7 @@ export async function GET(req: NextRequest) {
       totalExpenses: totalExpenses,
       resultado: resultado * months,
       monthlyResultado: resultado,
-      marginPct: totalNetRevenue > 0 ? resultado / totalNetRevenue * 100 : 0,
+      marginPct: totalNetRevenue > 0 ? (resultado / totalNetRevenue * 100) : 0,
       activeClients: activeClients.length,
       totalClients: clients.length,
       ticketMedio,
