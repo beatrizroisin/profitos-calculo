@@ -393,16 +393,16 @@ enum CollaboratorType {
 // ─── RUNRUN.IT INTEGRATION ────────────────────────────────────────────────────
 
 model RunRunConfig {
-  id            String           @id @default(cuid())
-  companyId     String           @unique
+  id            String            @id @default(cuid())
+  companyId     String            @unique
   appKey        String
   userToken     String
-  syncFrequency String           @default("daily")
+  syncFrequency String            @default("daily")
   lastSyncAt    DateTime?
-  isActive      Boolean          @default(true)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   userLinks     RunRunUserLink[]
   syncLogs      RunRunSyncLog[]
 

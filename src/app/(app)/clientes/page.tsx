@@ -97,10 +97,12 @@ export default function ClientesPage() {
   }
 
   const ativos      = clients.filter(c => c.status === 'ACTIVE');
+  const pipeline    = clients.filter(c => c.status === 'PIPELINE');
   const totalLiq    = ativos.reduce((s, c) => s + c.netRevenue, 0);
   const totalBruto  = ativos.reduce((s, c) => s + c.grossRevenue, 0);
   const totalImposto= totalBruto - totalLiq;
   const ticketMedio = ativos.length > 0 ? totalLiq / ativos.length : 0;
+  const pipelineNet = pipeline.reduce((s, c) => s + c.netRevenue, 0);
 
   const inputCls = "w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1A6B4A]/20 focus:border-[#1A6B4A] transition-colors";
 
@@ -115,6 +117,34 @@ export default function ClientesPage() {
       </div>
 
       {saved && <Alert variant="ok">Cliente {editId ? 'atualizado' : 'adicionado'} com sucesso e integrado em toda a ferramenta.</Alert>}
+
+      {/* Pipeline guide */}
+      {pipeline.length > 0 && !showForm && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-100">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"/>
+            <p className="text-xs text-blue-800">
+              <strong>{pipeline.length} possíve{pipeline.length === 1 ? 'l entrada' : 'is entradas'} no pipeline</strong>{' '}
+              — <span className="font-semibold">{BRL(pipelineNet)}/mês potencial</span>.{' '}
+              Quando fechar o contrato, edite o cliente e mude o status para <strong>Ativo</strong>.
+            </p>
+          </div>
+          <button onClick={() => setStatusFilter('PIPELINE')}
+            className="px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors flex-shrink-0 ml-3">
+            Ver pipeline
+          </button>
+        </div>
+      )}
+      {pipeline.length === 0 && !showForm && (
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+          <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-1"/>
+          <p className="text-xs text-gray-600">
+            <strong>Pipeline de possíveis entradas:</strong> ao cadastrar um cliente, selecione o status{' '}
+            <span className="font-medium text-blue-700">🔵 Possível Entrada (Pipeline)</span> para acompanhar oportunidades em negociação.
+            Elas aparecem no Dashboard com o valor potencial separado dos clientes ativos.
+          </p>
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -168,11 +198,21 @@ export default function ClientesPage() {
                 <p className="text-[10px] text-gray-400 mt-1">Imposto: {form.grossRevenue > 0 ? BRL(form.grossRevenue - form.netRevenue) : '—'}/mês</p>
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
+                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+                  Status do cliente
+                </label>
                 <select className={inputCls} value={form.status} onChange={e => F('status', e.target.value)}>
-                  <option value="ACTIVE">Ativo</option><option value="PROSPECT">Prospect</option>
-                  <option value="PIPELINE">Possível Entrada (Pipeline)</option><option value="INACTIVE">Inativo</option><option value="CHURNED">Churned</option>
+                  <option value="ACTIVE">✅  Ativo — contrato vigente</option>
+                  <option value="PIPELINE">🔵  Possível Entrada (Pipeline) — em negociação</option>
+                  <option value="PROSPECT">🟡  Prospect — contato inicial</option>
+                  <option value="INACTIVE">⚪  Inativo — pausado</option>
+                  <option value="CHURNED">🔴  Churned — cancelou</option>
                 </select>
+                {form.status === 'PIPELINE' && (
+                  <p className="text-[10px] text-blue-600 mt-1 font-medium">
+                    💡 Clientes Pipeline aparecem no Dashboard como possíveis entradas com valor potencial.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -244,10 +284,16 @@ export default function ClientesPage() {
 
       {/* KPIs */}
       <Grid4>
-        <KPICard label="Clientes ativos" value={String(ativos.length)} sub={`de ${clients.length} total`} color="blue" />
+        <KPICard label="Clientes ativos" value={String(ativos.length)} sub={`de ${clients.length} cadastrados`} color="blue" />
         <KPICard label="Receita líquida/mês" value={BRL(totalLiq)} sub="após impostos" color="green" accentColor="#1A6B4A" />
         <KPICard label="Ticket médio líquido" value={BRL(ticketMedio)} sub="por cliente/mês" color="blue" />
-        <KPICard label="Imposto mensal" value={BRL(totalImposto)} sub={`${((totalImposto / Math.max(totalBruto, 1)) * 100).toFixed(1)}% da receita bruta`} color="amber" />
+        <KPICard
+          label="Pipeline — possíveis entradas"
+          value={pipeline.length > 0 ? BRL(pipelineNet) : '—'}
+          sub={pipeline.length > 0 ? `${pipeline.length} oportunidade${pipeline.length !== 1 ? 's' : ''} · potencial/mês` : 'Nenhuma oportunidade no pipeline'}
+          color="blue"
+          accentColor="#2563EB"
+        />
       </Grid4>
 
       {/* Table */}
