@@ -1,6 +1,4 @@
-// GET /api/company-stats
-// Single source of truth for Metas, CEO, Simulador, Churn.
-// Cost base = payroll (sum of active collaborators' salaries).
+// src/app/api/company-stats/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -22,7 +20,14 @@ export async function GET(req: NextRequest) {
     }),
     prisma.collaboratorAllocation.findMany({
       where:  { companyId: u.companyId },
-      select: { allocatedCost: true },
+      // CORREÇÃO: Buscamos os campos de alocação e o salário do colaborador relacionado
+      select: { 
+        allocationPct: true, 
+        allocationHours: true,
+        collaborator: {
+          select: { salary: true, hoursPerMonth: true }
+        }
+      },
     }),
   ]);
 
@@ -31,41 +36,46 @@ export async function GET(req: NextRequest) {
   const clientCount   = clients.length;
   const ticketMedio   = clientCount > 0 ? totalRevenue / clientCount : 0;
 
-  // Payroll = monthly fixed cost
   const folhaTotal    = collaborators.reduce((s, c) => s + c.salary, 0);
   const monthlyExpense = folhaTotal;
 
   const resultado     = totalRevenue - monthlyExpense;
   const marginPct     = totalRevenue > 0 ? (resultado / totalRevenue) * 100 : 0;
   const folhaPct      = totalRevenue > 0 ? (folhaTotal / totalRevenue) * 100 : 0;
-  const custoAlocado  = allocations.reduce((s, a) => s + a.allocatedCost, 0);
+
+  // CORREÇÃO: Cálculo dinâmico do custo alocado
+  const custoAlocado  = allocations.reduce((total, a) => {
+    const salary = a.collaborator.salary || 0;
+    
+    if (a.allocationPct) {
+      return total + (salary * (a.allocationPct / 100));
+    } 
+    
+    if (a.allocationHours && a.collaborator.hoursPerMonth) {
+      const hourlyRate = salary / a.collaborator.hoursPerMonth;
+      return total + (hourlyRate * a.allocationHours);
+    }
+    
+    return total;
+  }, 0);
 
   const riskClients   = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
   const riskRevenue   = riskClients.reduce((s, c) => s + c.netRevenue, 0);
 
   return NextResponse.json({
-    // Revenue
     totalRevenue,
     totalGross,
     clientCount,
     ticketMedio,
-
-    // Cost (payroll-based)
     folhaTotal,
-    monthlyExpense,   // alias for folhaTotal — used by Metas, CEO, Simulador
+    monthlyExpense,
     folhaPct,
     custoAlocado,
-
-    // Derived
     resultado,
     marginPct,
-
-    // Risk
     riskClients: riskClients.length,
     riskRevenue,
-
-    // Status flags (no longer based on imported transactions)
-    hasExpenseData: folhaTotal > 0,   // true when team is registered
-    hasIncomeData:  clientCount > 0,  // true when clients are registered
+    hasExpenseData: folhaTotal > 0,
+    hasIncomeData:  clientCount > 0,
   });
 }
