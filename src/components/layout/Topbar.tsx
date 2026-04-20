@@ -5,14 +5,7 @@ import Link from 'next/link';
 import { ROLE_LABELS } from '@/lib/auth';
 
 const PERIOD_PAGES = ['/dashboard', '/metas', '/churn', '/ceo', '/simulador'];
-const PERIODS = [
-  { key: '30d', label: '30 dias' },
-  { key: '60d', label: '60 dias' },
-  { key: '90d', label: '90 dias' },
-  { key: '6m', label: '6 meses' },
-  { key: '1y', label: '1 ano' },
-  { key: '2y', label: '2 anos' }
-];
+const PERIODS = [{ key:'30d',label:'30 dias'},{ key:'60d',label:'60 dias'},{ key:'90d',label:'90 dias'},{ key:'6m',label:'6 meses'},{ key:'1y',label:'1 ano'},{ key:'2y',label:'2 anos'}];
 
 interface TopbarProps { userName:string; companyName:string; userRole:string; avatarUrl?:string; }
 
@@ -20,7 +13,7 @@ export function Topbar({ userName, companyName, userRole, avatarUrl }: TopbarPro
   const pathname     = usePathname();
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const period = searchParams.get('period') || '30d';
+  const period       = searchParams.get('period') || '90d';
   const showPeriod   = PERIOD_PAGES.some(p => pathname.startsWith(p));
 
   function setPeriod(key: string) {

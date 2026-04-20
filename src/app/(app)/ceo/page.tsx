@@ -56,8 +56,8 @@ export default function CeoPage({ searchParams }:{ searchParams:{period?:string}
 
   return (
     <div className="space-y-4">
-      {stats && !stats.hasExpenseData && (
-        <Alert variant="info">Nenhum lançamento de despesa importado ainda. Usando custo estimado de R$ 241.856. Importe suas contas a pagar para valores reais.</Alert>
+      {stats && !stats.hasExpenseData && stats.folhaTotal === 0 && (
+        <Alert variant="info">Cadastre a <a href="/colaboradores" className="underline font-medium">equipe e seus salários</a> para que as respostas usem seu custo fixo real.</Alert>
       )}
       <Alert variant="info">Respostas calculadas com {ativos.length} clientes ativos e projeção de {periodLabel}.</Alert>
       {qs.map((p,i)=>(

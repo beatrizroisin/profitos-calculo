@@ -18,7 +18,7 @@ const clientSchema = z.object({
   currentInstallment: z.number().int().min(1).default(1),
   startDate:          z.string(),
   dueDay:             z.number().int().min(1).max(31).default(5),
-  status:             z.enum(['ACTIVE','INACTIVE','PROSPECT','CHURNED']).default('ACTIVE'),
+  status:             z.enum(['ACTIVE','INACTIVE','PROSPECT','PIPELINE','CHURNED']).default('ACTIVE'),
   riskLevel:          z.enum(['LOW','MEDIUM','HIGH','CRITICAL']).default('LOW'),
   notes:              z.string().optional(),
 });

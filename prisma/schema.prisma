@@ -21,18 +21,18 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users                   User[]
-  invites                 UserInvite[]
-  clients                 Client[]
-  transactions            Transaction[]
-  pricings                Pricing[]
-  pricingItems            PricingItem[]
-  categories              Category[]
-  imports                 ImportLog[]
-  collaborators           Collaborator[]
+  users        User[]
+  invites      UserInvite[]
+  clients      Client[]
+  transactions Transaction[]
+  pricings     Pricing[]
+  pricingItems PricingItem[]
+  categories   Category[]
+  imports      ImportLog[]
+  collaborators Collaborator[]
   collaboratorAllocations CollaboratorAllocation[]
-  runRunConfig            RunRunConfig?
-  settings                CompanySettings?
+  runRunConfig RunRunConfig?
+  settings     CompanySettings?
 
   @@map("companies")
 }
@@ -65,7 +65,7 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sessions Session[]
   accounts Account[]
 
@@ -73,6 +73,7 @@ model User {
   @@map("users")
 }
 
+// Required by NextAuth for OAuth providers
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -146,8 +147,8 @@ model Client {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
-  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  transactions            Transaction[]            @relation("ClientTransactions")
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions Transaction[] @relation("ClientTransactions")
   collaboratorAllocations CollaboratorAllocation[]
 
   @@index([companyId])
@@ -190,9 +191,9 @@ model Transaction {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  client   Client?   @relation("ClientTransactions", fields: [clientId], references: [id], onDelete: SetNull)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client   Client?    @relation("ClientTransactions", fields: [clientId], references: [id], onDelete: SetNull)
+  category Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   import   ImportLog? @relation(fields: [importId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
@@ -268,110 +269,43 @@ model PricingItem {
   @@map("pricing_items")
 }
 
-// ─── ENUMS (CORRIGIDOS) ───────────────────────────────────────────────────────
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
 
-enum Plan {
-  FREE
-  STARTER
-  PRO
-  AGENCY
-  ENTERPRISE
-}
+enum Plan { FREE STARTER PRO AGENCY ENTERPRISE }
 
 enum UserRole {
-  OWNER
-  ADMIN
-  MANAGER
-  MEMBER
-  VIEWER
+  OWNER   // dono — tudo: convida, muda roles, deleta usuários
+  ADMIN   // admin — tudo exceto deletar empresa/outros admins
+  MANAGER // gerente — clientes, precificação, relatórios (sem configurações)
+  MEMBER  // membro — dashboards + leitura (sem edição)
+  VIEWER  // visualizador — somente leitura, sem exportar
 }
 
-enum InviteStatus {
-  PENDING
-  ACCEPTED
-  EXPIRED
-  CANCELLED
-}
-
-enum ImportType {
-  INCOME
-  EXPENSE
-}
-
-enum ImportStatus {
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-enum ServiceType {
-  ECOMMERCE_MANAGEMENT
-  PERFORMANCE_MEDIA
-  SEO_CONTENT
-  WEB_DEVELOPMENT
-  CRM_AUTOMATION
-  STRATEGIC_CONSULTING
-  SOCIAL_MEDIA
-  DESIGN_UX
-  BPO_FINANCIAL
-  OUTSOURCING
-  OTHER
-}
-
-enum ClientStatus {
-  ACTIVE
-  INACTIVE
-  PROSPECT
-  CHURNED
-}
-
-enum RiskLevel {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum TransactionType {
-  INCOME
-  EXPENSE
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  OVERDUE
-  CANCELLED
-}
-
-enum PricingStatus {
-  DRAFT
-  SENT
-  APPROVED
-  REJECTED
-  EXPIRED
-}
-
-enum CollaboratorType {
-  PJ
-  CLT
-}
+enum InviteStatus   { PENDING ACCEPTED EXPIRED CANCELLED }
+enum ImportType     { INCOME EXPENSE }
+enum ImportStatus   { PROCESSING COMPLETED FAILED }
+enum ServiceType    { ECOMMERCE_MANAGEMENT PERFORMANCE_MEDIA SEO_CONTENT WEB_DEVELOPMENT CRM_AUTOMATION STRATEGIC_CONSULTING SOCIAL_MEDIA DESIGN_UX BPO_FINANCIAL OUTSOURCING OTHER }
+enum ClientStatus   { ACTIVE INACTIVE PROSPECT PIPELINE CHURNED }
+enum RiskLevel      { LOW MEDIUM HIGH CRITICAL }
+enum TransactionType{ INCOME EXPENSE }
+enum PaymentStatus  { PENDING PAID OVERDUE CANCELLED }
+enum PricingStatus  { DRAFT SENT APPROVED REJECTED EXPIRED }
 
 // ─── ALOCAÇÃO DE COLABORADORES ───────────────────────────────────────────────
 
 model Collaborator {
-  id            String   @id @default(cuid())
-  companyId     String
-  name          String
-  position      String
-  type          CollaboratorType @default(PJ)
-  salary        Float
-  hoursPerMonth Int      @default(160)
-  avatarUrl     String?
-  isActive      Boolean  @default(true)
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  companyId    String
+  name         String
+  position     String
+  type         CollaboratorType @default(PJ)
+  salary       Float
+  hoursPerMonth Int     @default(160)
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   runRunLink  RunRunUserLink?
   company     Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -382,16 +316,16 @@ model Collaborator {
 }
 
 model CollaboratorAllocation {
-  id              String  @id @default(cuid())
-  companyId       String
-  collaboratorId  String
-  clientId        String
-  serviceType     String
-  allocationPct   Float?  // % do tempo
-  allocationHours Float? // horas/mês
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String  @id @default(cuid())
+  companyId      String
+  collaboratorId String
+  clientId       String
+  serviceType    String
+  allocationPct  Float?  // % do tempo — nullable se usar horas
+  allocationHours Float? // horas/mês — nullable se usar %
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   collaborator Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
@@ -403,6 +337,8 @@ model CollaboratorAllocation {
   @@map("collaborator_allocations")
 }
 
+enum CollaboratorType { PJ CLT }
+
 // ─── RUNRUN.IT INTEGRATION ────────────────────────────────────────────────────
 
 model RunRunConfig {
@@ -410,13 +346,13 @@ model RunRunConfig {
   companyId     String   @unique
   appKey        String   // encrypted
   userToken     String   // encrypted
-  syncFrequency String   @default("daily")
+  syncFrequency String   @default("daily") // manual | daily | weekly
   lastSyncAt    DateTime?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   userLinks RunRunUserLink[]
   syncLogs  RunRunSyncLog[]
 
@@ -427,8 +363,8 @@ model RunRunUserLink {
   id             String @id @default(cuid())
   companyId      String
   configId       String
-  collaboratorId String @unique 
-  runrunUserId   String  // RunRun.it user id
+  collaboratorId String
+  runrunUserId   String  // RunRun.it user id (slug)
   runrunEmail    String?
   runrunName     String?
   createdAt      DateTime @default(now())
@@ -449,7 +385,7 @@ model RunRunSyncLog {
   syncedAt   DateTime @default(now())
   hoursCount Int      @default(0)
   errorMsg   String?  @db.Text
-  payload    String?  @db.Text 
+  payload    String?  @db.Text // JSON snapshot
 
   config RunRunConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
@@ -464,7 +400,7 @@ model RunRunTimeEntry {
   runrunUserId   String
   runrunTaskId   String?
   runrunClientId String?
-  clientId       String?  
+  clientId       String?  // profitOS client id (matched by name)
   hoursWorked    Float
   dateWorked     DateTime
   taskTitle      String?

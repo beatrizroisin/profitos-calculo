@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Card, Grid4, KPICard, Button, Input, Select, Alert, Pill } from '@/components/ui';
 import { BRL, SERVICE_TYPE_LABELS, RISK_LABELS, STATUS_LABELS } from '@/lib/utils';
 
@@ -20,11 +20,11 @@ const EMPTY: Omit<Client, 'id'> = {
   dueDay: 5, status: 'ACTIVE', riskLevel: 'LOW', notes: '',
 };
 
-const STATUS_PILL: Record<string, any> = { ACTIVE: 'green', INACTIVE: 'gray', PROSPECT: 'amber', CHURNED: 'red' };
+const STATUS_PILL: Record<string, any> = { ACTIVE: 'green', INACTIVE: 'gray', PROSPECT: 'amber', PIPELINE: 'blue', CHURNED: 'red' };
 const RISK_PILL:   Record<string, any> = { LOW: 'green', MEDIUM: 'amber', HIGH: 'red', CRITICAL: 'red' };
 
 export default function ClientesPage() {
-  const searchParams = useSearchParams();
+  const searchParams                    = useSearchParams();
   const [clients, setClients]       = useState<Client[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
@@ -35,13 +35,12 @@ export default function ClientesPage() {
   const [search, setSearch]         = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => { fetchClients(); }, []);
-
+  // Auto-open new form when navigated from dashboard ?new=1
   useEffect(() => {
-    if (searchParams.get('new') === 'true') {
-      openNew();
-    }
-  }, [searchParams])
+    if (searchParams.get('new') === '1') openNew();
+  }, []);
+
+  useEffect(() => { fetchClients(); }, []);
 
   async function fetchClients() {
     setLoading(true);
@@ -172,7 +171,7 @@ export default function ClientesPage() {
                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
                 <select className={inputCls} value={form.status} onChange={e => F('status', e.target.value)}>
                   <option value="ACTIVE">Ativo</option><option value="PROSPECT">Prospect</option>
-                  <option value="INACTIVE">Inativo</option><option value="CHURNED">Churned</option>
+                  <option value="PIPELINE">Possível Entrada (Pipeline)</option><option value="INACTIVE">Inativo</option><option value="CHURNED">Churned</option>
                 </select>
               </div>
             </div>
@@ -257,7 +256,7 @@ export default function ClientesPage() {
           <input type="text" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)}
             className="flex-1 min-w-[180px] px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#1A6B4A]" />
           <div className="flex bg-gray-100 rounded-lg p-0.5 border border-gray-100">
-            {[['', 'Todos'], ['ACTIVE', 'Ativos'], ['PROSPECT', 'Prospects'], ['CHURNED', 'Churned']].map(([v, l]) => (
+            {[['', 'Todos'], ['ACTIVE', 'Ativos'], ['PROSPECT', 'Prospects'], ['PIPELINE', 'Pipeline'], ['CHURNED', 'Churned']].map(([v, l]) => (
               <button key={v} onClick={() => setStatusFilter(v)}
                 className={`px-3 py-1 rounded-md text-[11px] transition-all ${statusFilter === v ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500'}`}>{l}</button>
             ))}
