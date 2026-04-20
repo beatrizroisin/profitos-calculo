@@ -1,16 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useState, Suspense } from 'react'; // Importe o Suspense
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LoginPage() {
-  const router       = useRouter();
-  const params       = useSearchParams();
-  const [email, setEmail]       = useState('');
+// 1. Criamos um subcomponente para o conteúdo do login que usa os hooks de busca
+function LoginForm() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]       = useState(params.get('error') ? 'Acesso negado ou conta inativa.' : '');
-  const [loading, setLoading]   = useState(false);
+  const [error, setError] = useState(params.get('error') ? 'Acesso negado ou conta inativa.' : '');
+  const [loading, setLoading] = useState(false);
   const [gLoading, setGLoading] = useState(false);
 
   async function handleCredentials(e: React.FormEvent) {
@@ -89,10 +90,17 @@ export default function LoginPage() {
 
       <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
         <p className="text-xs font-medium text-gray-500 mb-1">Credenciais de demonstração:</p>
-        <p className="text-xs text-gray-600">admin@demo.com / Demo@2026 — Proprietário</p>
-        <p className="text-xs text-gray-600">gerente@demo.com / Demo@2026 — Gerente</p>
-        <p className="text-xs text-gray-600">viewer@demo.com / Demo@2026 — Visualizador</p>
+        <p className="text-xs text-gray-600">admin@demo.com / Demo@2026</p>
       </div>
     </div>
+  );
+}
+
+// 2. O componente principal apenas envolve o formulário em Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-500">Carregando...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
