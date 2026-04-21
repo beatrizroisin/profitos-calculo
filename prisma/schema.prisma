@@ -134,7 +134,7 @@ model Client {
   currentInstallment      Int                      @default(1)
   startDate               DateTime
   dueDay                  Int                      @default(5)
-  status                  ClientStatus             @default(ACTIVE)
+  status                  String             @default(ACTIVE)
   riskLevel               RiskLevel                @default(LOW)
   notes                   String?
   createdAt               DateTime                 @default(now())
