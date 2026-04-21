@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, ServiceType, ClientStatus, RiskLevel, PricingStatus } from '@prisma/client';
+import { PrismaClient, UserRole, ServiceType, RiskLevel, PricingStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -66,7 +66,7 @@ async function main() {
 
   for (const c of clients) {
     const net = c.gross * 0.94;
-    await prisma.client.create({ data: { companyId:company.id, name:c.name, serviceType:c.serviceType, grossRevenue:c.gross, taxRate:6, netRevenue:net, isRecurring:c.recurring!==false, totalInstallments:12, currentInstallment:2, startDate:new Date('2026-01-01'), dueDay:15, status:ClientStatus.ACTIVE, riskLevel:c.risk } });
+    await prisma.client.create({ data: { companyId:company.id, name:c.name, serviceType:c.serviceType, grossRevenue:c.gross, taxRate:6, netRevenue:net, isRecurring:c.recurring!==false, totalInstallments:12, currentInstallment:2, startDate:new Date('2026-01-01'), dueDay:15, status: 'ACTIVE', riskLevel:c.risk } });
   }
 
   // Sample pricing
