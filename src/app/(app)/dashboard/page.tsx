@@ -79,10 +79,20 @@ export default async function DashboardPage({ searchParams }: Props) {
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${showPipeline ? 'bg-blue-500' : 'bg-gray-400'}`}/>
             <div>
               <p className="text-xs font-medium text-gray-800">
-                {pipeline.length} possíve{pipeline.length === 1 ? 'l entrada' : 'is entradas'} no pipeline —{' '}
+                {pipeline.length} {pipeline.length === 1 ? 'possível entrada' : 'possíveis entradas'} no pipeline —{' '}
                 <span className="text-blue-700 font-semibold">{BRL(pipelineNet)}/mês potencial</span>
-                {pipelineRecurring > 0 && <span className="text-blue-600"> · {pipelineRecurring} recorrente{pipelineRecurring > 1 ? 's' : ''}</span>}
-                {pipelinePontual > 0   && <span className="text-blue-500"> · {pipelinePontual} pontual{pipelinePontual > 1 ? 'is' : ''}</span>}
+                
+                {pipelineRecurring > 0 && (
+                  <span className="text-blue-600">
+                    · {pipelineRecurring} {pipelineRecurring > 1 ? 'recorrentes' : 'recorrente'}
+                  </span>
+                )}
+                
+                {pipelinePontual > 0 && (
+                  <span className="text-blue-500">
+                    · {pipelinePontual} {pipelinePontual > 1 ? 'pontuais' : 'pontual'}
+                  </span>
+                )}
               </p>
               <p className="text-[10.5px] text-gray-500 mt-0.5">
                 {showPipeline
