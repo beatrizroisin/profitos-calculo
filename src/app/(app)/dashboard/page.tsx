@@ -20,16 +20,15 @@ export default async function DashboardPage({ searchParams }: Props) {
   const showPipeline = searchParams.pipeline === '1';
   const periodLabel  = PERIOD_LABEL[period] || '90 dias';
 
-  const [clients, collaborators, txAgg] = await Promise.all([
+  const [clients, collaborators, txExpenseAgg] = await Promise.all([
     prisma.client.findMany({ where: { companyId } }),
     prisma.collaborator.findMany({
       where:  { companyId, isActive: true },
       select: { salary: true },
     }),
     // Aggregate pagar × receber totals
-    prisma.transaction.groupBy({
-      by:    ['type'],
-      where: { companyId, status: { not: 'CANCELLED' } },
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'EXPENSE', status: { not: 'CANCELLED' } },
       _sum:  { amount: true },
     }),
   ]);
@@ -55,8 +54,8 @@ export default async function DashboardPage({ searchParams }: Props) {
   const resultadoComPipeline = (monthlyNet + pipelineNet) - folhaTotal;
 
   // Pagar × Receber totals from transactions table
-  const totalPagar   = txAgg.find(t => t.type === 'EXPENSE')?._sum.amount ?? 0;
-  const totalReceber = txAgg.find(t => t.type === 'INCOME')?._sum.amount  ?? 0;
+  const totalPagar   = txExpenseAgg._sum.amount ?? 0;
+  const totalReceber = monthlyNet;
 
   const topClients  = [...displayed].sort((a, b) => b.netRevenue - a.netRevenue).slice(0, 6);
   const maxRev      = topClients[0]?.netRevenue || 1;
@@ -80,10 +79,20 @@ export default async function DashboardPage({ searchParams }: Props) {
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${showPipeline ? 'bg-blue-500' : 'bg-gray-400'}`}/>
             <div>
               <p className="text-xs font-medium text-gray-800">
-                {pipeline.length} possíve{pipeline.length === 1 ? 'l entrada' : 'is entradas'} no pipeline —{' '}
+                {pipeline.length} {pipeline.length === 1 ? 'possível entrada' : 'possíveis entradas'} no pipeline —{' '}
                 <span className="text-blue-700 font-semibold">{BRL(pipelineNet)}/mês potencial</span>
-                {pipelineRecurring > 0 && <span className="text-blue-600"> · {pipelineRecurring} recorrente{pipelineRecurring > 1 ? 's' : ''}</span>}
-                {pipelinePontual > 0   && <span className="text-blue-500"> · {pipelinePontual} pontual{pipelinePontual > 1 ? 'is' : ''}</span>}
+                
+                {pipelineRecurring > 0 && (
+                  <span className="text-blue-600">
+                    · {pipelineRecurring} {pipelineRecurring > 1 ? 'recorrentes' : 'recorrente'}
+                  </span>
+                )}
+                
+                {pipelinePontual > 0 && (
+                  <span className="text-blue-500">
+                    · {pipelinePontual} {pipelinePontual > 1 ? 'pontuais' : 'pontual'}
+                  </span>
+                )}
               </p>
               <p className="text-[10.5px] text-gray-500 mt-0.5">
                 {showPipeline

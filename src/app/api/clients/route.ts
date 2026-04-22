@@ -1,28 +1,29 @@
 // src/app/api/clients/route.ts
+// NOTE: Client.status is String (not ClientStatus enum) — accepts PIPELINE without DB migration
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-// REMOVIDO: ClientStatus (não existe mais como enum no Prisma)
-import { ServiceType, RiskLevel } from '@prisma/client'; 
+
+const STATUS_VALUES = ['ACTIVE','INACTIVE','PROSPECT','PIPELINE','CHURNED'] as const;
+const RISK_VALUES   = ['LOW','MEDIUM','HIGH','CRITICAL']                    as const;
 
 const clientSchema = z.object({
   name:               z.string().min(2),
   document:           z.string().optional().nullable(),
   email:              z.string().email().optional().or(z.literal('')).nullable(),
   phone:              z.string().optional().nullable(),
-  serviceType:        z.nativeEnum(ServiceType), 
-  grossRevenue:       z.number().positive(),
+  serviceType:        z.string(),
+  grossRevenue:       z.number().min(0),
   taxRate:            z.number().min(0).max(100).default(6),
   isRecurring:        z.boolean().default(true),
   totalInstallments:  z.number().int().min(0).default(12),
   currentInstallment: z.number().int().min(1).default(1),
   startDate:          z.string(),
   dueDay:             z.number().int().min(1).max(31).default(5),
-  // CORREÇÃO: Usamos z.enum com as strings manuais já que o ClientStatus sumiu do Prisma
-  status:             z.enum(['ACTIVE', 'INACTIVE', 'PROSPECT', 'PIPELINE', 'CHURNED']).default('ACTIVE'),
-  riskLevel:          z.nativeEnum(RiskLevel).default(RiskLevel.LOW),
+  status:             z.enum(STATUS_VALUES).default('ACTIVE'),
+  riskLevel:          z.enum(RISK_VALUES).default('LOW'),
   notes:              z.string().optional().nullable(),
 });
 
@@ -38,7 +39,6 @@ export async function GET(req: NextRequest) {
   const clients = await prisma.client.findMany({
     where: {
       companyId,
-      // Removido o cast "as ClientStatus", usamos apenas a string
       ...(status ? { status } : {}),
       ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
     },
@@ -51,31 +51,51 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const companyId = (session.user as any).companyId as string;
+  const companyId = (session.user as any).companyId;
 
   try {
     const body = await req.json();
-    const parsedData = clientSchema.parse(body);
-    
-    const netRevenue = parsedData.grossRevenue * (1 - parsedData.taxRate / 100);
+    console.log('[clients POST] body received:', JSON.stringify({ status: body.status, name: body.name }));
 
-    const { startDate, email, ...rest } = parsedData;
+    const data = clientSchema.parse(body);
+    const netRevenue = data.grossRevenue * (1 - data.taxRate / 100);
 
     const client = await prisma.client.create({
       data: {
-        ...rest,
         companyId,
+        name:               data.name,
+        document:           data.document           || null,
+        email:              data.email              || null,
+        phone:              data.phone              || null,
+        serviceType:        data.serviceType        as any,   // ServiceType enum stays
+        grossRevenue:       data.grossRevenue,
+        taxRate:            data.taxRate,
         netRevenue,
-        startDate: new Date(startDate),
-        email: email || null,
-        // O campo status já vem como string do parsedData.status
+        isRecurring:        data.isRecurring,
+        totalInstallments:  data.totalInstallments,
+        currentInstallment: data.currentInstallment,
+        startDate:          new Date(data.startDate),
+        dueDay:             data.dueDay,
+        status:             data.status,             // String field — no cast needed
+        riskLevel:          data.riskLevel           as any,   // RiskLevel enum stays
+        notes:              data.notes               || null,
       },
     });
 
+    console.log('[clients POST] created client id:', client.id, 'status:', client.status);
     return NextResponse.json(client, { status: 201 });
+
   } catch (err: any) {
-    if (err?.name === 'ZodError') return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
-    console.error('Erro ao criar cliente:', err);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    if (err?.name === 'ZodError') {
+      console.error('[clients POST] Zod error:', err.errors);
+      return NextResponse.json({
+        error: 'Dados inválidos: ' + err.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', '),
+        details: err.errors,
+      }, { status: 400 });
+    }
+    console.error('[clients POST] error:', err?.message, err?.code);
+    return NextResponse.json({
+      error: 'Erro interno: ' + (err?.message || 'desconhecido'),
+    }, { status: 500 });
   }
 }
