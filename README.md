@@ -129,10 +129,7 @@ Abra `https://SEU-APP.vercel.app` e faça login com as credenciais demo:
 | E-mail | Senha | Nível |
 |---|---|---|
 | `admin@demo.com` | `Demo@2026` | Proprietário |
-| `admin2@demo.com` | `Demo@2026` | Administrador |
-| `gerente@demo.com` | `Demo@2026` | Gerente |
-| `membro@demo.com` | `Demo@2026` | Membro |
-| `viewer@demo.com` | `Demo@2026` | Visualizador |
+
 
 > **Importante**: altere as senhas demo imediatamente após o primeiro acesso em produção.
 
