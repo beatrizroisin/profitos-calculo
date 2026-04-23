@@ -18,11 +18,7 @@ async function main() {
   const hash = (p: string) => bcrypt.hash(p, 12);
 
   const demoUsers = [
-    { email: 'admin@demo.com',    name: 'Administrador', role: UserRole.OWNER   },
-    { email: 'admin2@demo.com',   name: 'Ana Lima',      role: UserRole.ADMIN   },
-    { email: 'gerente@demo.com',  name: 'Carlos Gerente',role: UserRole.MANAGER },
-    { email: 'membro@demo.com',   name: 'Diana Membro',  role: UserRole.MEMBER  },
-    { email: 'viewer@demo.com',   name: 'Eduardo Viewer',role: UserRole.VIEWER  },
+    { email: 'admin@demo.com',    name: 'Administrador', role: UserRole.OWNER   }
   ];
 
   for (const u of demoUsers) {

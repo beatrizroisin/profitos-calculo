@@ -4,7 +4,7 @@ import { Card, Grid4, Grid2, KPICard, BarRow, Alert } from '@/components/ui';
 import { BRL, BRLk } from '@/lib/utils';
 
 interface Client { netRevenue:number; grossRevenue:number; status:string; name:string; isRecurring:boolean; }
-interface Stats  { monthlyExpense:number; totalRevenue:number; clientCount:number; ticketMedio:number; hasExpenseData:boolean; resultado:number; folhaTotal:number; }
+interface Stats  { monthlyExpense:number; totalRevenue:number; clientCount:number; ticketMedio:number; hasExpenseData:boolean; resultado:number; folhaTotal:number; totalCustoMensal:number; despesasLancadas:number; }
 
 export default function MetasPage({ searchParams }: { searchParams: { period?: string } }) {
   const [clients, setClients] = useState<Client[]>([]);
@@ -13,9 +13,9 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
   const [margem,  setMargem]  = useState(20);
   const [ticket,  setTicket]  = useState(0);
 
-  const period = searchParams?.period || '90d';
+  const period = searchParams?.period || '30d';
   const months = { '90d':3,'6m':6,'1y':12,'2y':24 }[period] || 3;
-  const periodLabel = { '30d':'30 dias','60d':'60 dias','90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' }[period] || '90 dias';
+  const periodLabel = { '30d':'30 dias','60d':'60 dias','90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' }[period] || '30 dias';
 
   useEffect(() => {
     Promise.all([
@@ -26,8 +26,9 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
       if (sData && !sData.error) {
         setStats(sData);
         // Use real monthly expense average; fall back to payroll; last resort: 0
-        const expense = sData.monthlyExpense > 0
-          ? Math.round(sData.monthlyExpense)
+        // Use combined cost (folha + despesas) as base
+        const expense = sData.totalCustoMensal > 0
+          ? Math.round(sData.totalCustoMensal)
           : sData.folhaTotal > 0 ? Math.round(sData.folhaTotal) : 0;
         setCusto(expense);
         setTicket(Math.round(sData.ticketMedio) || 0);
@@ -66,7 +67,7 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
             <div>
               <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Custo fixo mensal (R$)</label>
               <input type="number" className={inpCls} value={custo} onChange={e=>setCusto(Number(e.target.value))} />
-              {stats?.hasExpenseData && <p className="text-[10px] text-gray-400 mt-1">Calculado a partir da folha de salários dos colaboradores ativos.</p>}
+              {stats?.hasExpenseData && <p className="text-[10px] text-gray-400 mt-1">Folha de pagamento + despesas lançadas (custo total mensal real).</p>}
             </div>
             <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Margem de lucro alvo (%)</label><input type="number" min="1" max="80" className={inpCls} value={margem} onChange={e=>setMargem(Number(e.target.value))} /></div>
             <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Ticket médio por cliente (R$)</label><input type="number" min="500" className={inpCls} value={ticket} onChange={e=>setTicket(Number(e.target.value))} /></div>
