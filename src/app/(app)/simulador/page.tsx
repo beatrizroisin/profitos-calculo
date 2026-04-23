@@ -17,6 +17,13 @@ const TABS: [SimId, string, string][] = [
 const INP = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:border-[#1A6B4A]';
 const LBL = 'block text-[9.5px] font-medium text-gray-400 uppercase tracking-wider mb-1.5';
 
+interface CompanyStats {
+  totalRevenue: number;
+  totalCustoMensal: number;
+  monthlyExpense: number;
+  folhaTotal: number;
+}
+
 export default function SimuladorPage({ searchParams }: { searchParams: { period?: string } }) {
   const months = { '30d':1,'60d':2,'90d':3,'6m':6,'1y':12,'2y':24 }[searchParams?.period||'30d'] || 3;
   const [tab,     setTab]     = useState<SimId>('contratar');
@@ -34,27 +41,36 @@ export default function SimuladorPage({ searchParams }: { searchParams: { period
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef  = useRef<Chart|null>(null);
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/clients').then(r => r.ok ? r.json() : []),
-      fetch('/api/company-stats').then(r => r.ok ? r.json() : {}),
-    ]).then(([cData, sData]) => {
-      if (Array.isArray(cData)) {
-        setClients(cData.filter((c: any) => c.status === 'ACTIVE'));
-        const pl = cData.filter((c: any) => c.status === 'PIPELINE');
-        setPipelineClients(pl);
-        setPipelineRev(pl.reduce((s: number, c: any) => s + c.netRevenue, 0));
-      }
-      if (sData?.totalRevenue !== undefined) {
-        // Use totalCustoMensal (folha + despesas) for accurate base
-        const expense = sData.totalCustoMensal > 0 ? sData.totalCustoMensal : sData.monthlyExpense > 0 ? sData.monthlyExpense : sData.folhaTotal > 0 ? sData.folhaTotal : 0;
-        setBase(sData.totalRevenue - expense);
-        setTotalRev(sData.totalRevenue);
-        setFolha(expense);
-      }
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+
+useEffect(() => {
+  Promise.all([
+    fetch('/api/clients').then(r => r.ok ? r.json() : []),
+    fetch('/api/company-stats').then(r => r.ok ? r.json() : null), // Mudamos para null aqui
+  ]).then(([cData, sData]: [any[], CompanyStats | null]) => { // Tipamos o retorno
+    if (Array.isArray(cData)) {
+      setClients(cData.filter((c: any) => c.status === 'ACTIVE'));
+      const pl = cData.filter((c: any) => c.status === 'PIPELINE');
+      setPipelineClients(pl);
+      setPipelineRev(pl.reduce((s: number, c: any) => s + c.netRevenue, 0));
+    }
+
+    // Agora o TypeScript sabe o que existe dentro de sData
+    if (sData && sData.totalRevenue !== undefined) {
+      const expense = sData.totalCustoMensal > 0 
+        ? sData.totalCustoMensal 
+        : sData.monthlyExpense > 0 
+          ? sData.monthlyExpense 
+          : sData.folhaTotal > 0 
+            ? sData.folhaTotal 
+            : 0;
+            
+      setBase(sData.totalRevenue - expense);
+      setTotalRev(sData.totalRevenue);
+      setFolha(expense);
+    }
+    setLoading(false);
+  }).catch(() => setLoading(false));
+}, []);
 
   useEffect(() => {
     if (loading) return;
