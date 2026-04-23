@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.collaboratorAllocation.findMany({
       where:  { companyId: u.companyId },
-      select: { allocatedCost: true },
+      select: { [ 'allocatedCost' as any ]: true },
     }),
     // All non-cancelled expense transactions
     prisma.transaction.aggregate({
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   const folhaPct           = totalRevenue > 0 ? (folhaTotal / totalRevenue) * 100 : 0;
   const custoTotalPct      = totalRevenue > 0 ? (totalCustoMensal / totalRevenue) * 100 : 0;
   const saldoMes           = resultado;
-  const custoAlocado       = allocations.reduce((s, a) => s + a.allocatedCost, 0);
+ const custoAlocado = (allocations as any[]).reduce((s, a) => s + (a.allocatedCost || 0), 0);
 
   // Risk
   const riskClients       = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
