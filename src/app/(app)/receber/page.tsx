@@ -166,7 +166,7 @@ export default function ReceberPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setPaidClients(prev => new Set([...prev, clientId]));
+        setPaidClients(prev => new Set([...Array.from(prev), clientId]));
         setSaved('Recebimento registrado.');
         setTimeout(() => setSaved(''), 3000);
       } else {
