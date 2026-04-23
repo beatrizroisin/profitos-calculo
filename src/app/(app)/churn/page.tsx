@@ -7,20 +7,28 @@ interface Client { id:string;name:string;netRevenue:number;riskLevel:string;stat
 
 export default function ChurnPage({ searchParams }: { searchParams: { period?: string } }) {
   const [clients, setClients] = useState<Client[]>([]);
-  const [churnPct, setChurnPct] = useState(5);
-  const [cliCount, setCliCount] = useState(0);
-  const [ticket,   setTicket]   = useState(0);
+  const [churnPct,   setChurnPct]   = useState(5);
+  const [cliCount,   setCliCount]   = useState(0);
+  const [ticket,     setTicket]     = useState(0);
+  const [custoTotal, setCustoTotal] = useState(0);
   const period = searchParams?.period || '90d';
   const months = {'90d':3,'6m':6,'1y':12,'2y':24}[period]||3;
   const periodLabel = {'90d':'3 meses','6m':'6 meses','1y':'12 meses','2y':'24 meses'}[period]||'3 meses';
 
   useEffect(() => {
-    fetch('/api/clients').then(r=>r.json()).then(data=>{
-      if(!Array.isArray(data)) return;
-      setClients(data);
-      const a=data.filter((c:Client)=>c.status==='ACTIVE');
+    Promise.all([
+      fetch('/api/clients').then(r=>r.json()),
+      fetch('/api/company-stats').then(r=>r.ok?r.json():null),
+    ]).then(([cData, sData]) => {
+      if(!Array.isArray(cData)) return;
+      setClients(cData);
+      const a=cData.filter((c:Client)=>c.status==='ACTIVE');
       setCliCount(a.length);
       if(a.length>0) setTicket(Math.round(a.reduce((s:number,c:Client)=>s+c.netRevenue,0)/a.length));
+      // Store total cost (folha + despesas) for financial impact calculation
+      if(sData?.totalCustoMensal !== undefined) {
+        setCustoTotal(sData.totalCustoMensal);
+      }
     });
   },[]);
 
@@ -47,7 +55,17 @@ export default function ChurnPage({ searchParams }: { searchParams: { period?: s
             <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Clientes na carteira</label><input type="number" min="1" className={inp} value={cliCount} onChange={e=>setCliCount(Number(e.target.value))}/></div>
             <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Ticket médio líquido (R$)</label><input type="number" min="0" step="500" className={inp} value={ticket} onChange={e=>setTicket(Number(e.target.value))}/></div>
             <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2 text-xs">
-              {[['Clientes perdidos/mês',String(perdMes),'#DC3545'],['Receita perdida/mês',BRL(recPerd),'#DC3545'],['Clientes em '+periodLabel,String(cN),cN<cliCount*0.7?'#DC3545':'#E67E22'],['Receita em '+periodLabel,BRL(rN),rN<ticket*cliCount*0.8?'#DC3545':'#E67E22'],['LTV médio',BRL(ltv),'var(--color-text-primary)']].map(([l,v,c])=>(
+              {[
+                ['Clientes perdidos/mês',String(perdMes),'#DC3545'],
+                ['Receita perdida/mês',BRL(recPerd),'#DC3545'],
+                ['Clientes em '+periodLabel,String(cN),cN<cliCount*0.7?'#DC3545':'#E67E22'],
+                ['Receita em '+periodLabel,BRL(rN),rN<ticket*cliCount*0.8?'#DC3545':'#E67E22'],
+                ['LTV médio',BRL(ltv),'var(--color-text-primary)'],
+                ...(custoTotal > 0 ? [
+                  ['Custo total/mês (folha+desp.)', BRL(custoTotal), '#6B7280'],
+                  ['Resultado c/ churn ('+periodLabel+')', BRL(rN - custoTotal), rN < custoTotal ? '#DC3545' : '#1A6B4A'],
+                ] : []),
+              ].map(([l,v,c])=>(
                 <div key={l as string} className="flex justify-between"><span className="text-gray-500">{l}</span><span className="font-semibold tabular" style={{color:c as string}}>{v}</span></div>
               ))}
             </div>

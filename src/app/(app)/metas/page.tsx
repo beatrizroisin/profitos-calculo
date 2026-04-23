@@ -14,13 +14,13 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
   const [ticket,  setTicket]  = useState(0);
 
   const period = searchParams?.period || '30d';
-  const months = { '90d':3,'6m':6,'1y':12,'2y':24 }[period] || 3;
-  const periodLabel = { '30d':'30 dias','60d':'60 dias','90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' }[period] || '30 dias';
+  const months = ({ '90d':3,'6m':6,'1y':12,'2y':24 } as Record<string, number>)[period] || 3;
+  const periodLabel = ({ '30d':'30 dias','60d':'60 dias','90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' } as Record<string, string>)[period] || '30 dias';
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/clients').then(r=>r.json()),
-      fetch('/api/company-stats').then(r=>r.json()),
+      fetch('/api/clients').then(r => r.ok ? r.json() : []),
+      fetch('/api/company-stats').then(r => r.ok ? r.json() : null),
     ]).then(([cData, sData]) => {
       if (Array.isArray(cData)) setClients(cData);
       if (sData && !sData.error) {

@@ -1,75 +1,112 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Alert } from '@/components/ui';
+import { Alert, Card } from '@/components/ui';
 import { BRL } from '@/lib/utils';
 
-interface Client { netRevenue: number; grossRevenue: number; status: string; riskLevel: string; name: string; }
-interface Stats { monthlyExpense: number; totalRevenue: number; clientCount: number; ticketMedio: number; hasExpenseData: boolean; resultado: number; folhaTotal: number; }
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface Client { 
+  netRevenue: number; 
+  grossRevenue: number; 
+  status: string; 
+  riskLevel: string; 
+  name: string; 
+}
+
+interface Stats { 
+  monthlyExpense: number; 
+  totalRevenue: number; 
+  clientCount: number; 
+  hasExpenseData: boolean; 
+  folhaTotal: number; 
+  totalCustoMensal: number; 
+}
+
+interface Transaction {
+  id: string;
+  type: 'INCOME' | 'EXPENSE';
+  amount: number;
+  status: 'PAID' | 'PENDING' | 'OVERDUE';
+}
 
 export default function CeoPage({ searchParams }: { searchParams: { period?: string } }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const period = searchParams?.period || '90d';
   const months = ({ '90d': 3, '6m': 6, '1y': 12, '2y': 24 } as Record<string, number>)[period] || 3;
   const periodLabel = ({ '90d': '90 dias', '6m': '6 meses', '1y': '1 ano', '2y': '2 anos' } as Record<string, string>)[period] || '90 dias';
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       fetch('/api/clients').then(r => r.json()),
       fetch('/api/company-stats').then(r => r.json()),
-    ]).then(([cData, sData]) => {
+      fetch('/api/transactions').then(r => r.json()), // Puxa o financeiro real
+    ]).then(([cData, sData, tData]) => {
       if (Array.isArray(cData)) setClients(cData);
       if (sData && !sData.error) setStats(sData);
+      // Ajuste conforme a estrutura do seu retorno de transações
+      if (tData.transactions) setTransactions(tData.transactions);
+      setLoading(false);
     });
   }, []);
 
-  // Cálculos básicos
-  const ativos = clients.filter(c => c.status === 'ACTIVE');
-  const totalLiq = ativos.reduce((s, c) => s + c.netRevenue, 0);
+  // ── Cálculos Financeiros Integrados ──────────────────────────────────────────
   
-  // CORREÇÃO: Verificação de nulidade para stats
-  const expenses = stats 
-    ? (stats.monthlyExpense > 0 ? stats.monthlyExpense : stats.folhaTotal > 0 ? stats.folhaTotal : 0)
-    : 0;
+  // 1. Receita vinda das transações de ENTRADA (Mensalidades pagas + Extras)
+  const receitaReal = transactions
+    .filter(t => t.type === 'INCOME' && t.status === 'PAID')
+    .reduce((s, t) => s + t.amount, 0);
 
-  const resultado = totalLiq - expenses;
+  // 2. Custos vindos das transações de SAÍDA (Contas a pagar)
+  const custosFinanceiros = transactions
+    .filter(t => t.type === 'EXPENSE')
+    .reduce((s, t) => s + t.amount, 0);
+
+  // 3. Fallback: Se não houver transações lançadas, usa a folha/stats
+  const totalSaidas = custosFinanceiros > 0 ? custosFinanceiros : (stats?.totalCustoMensal || stats?.folhaTotal || 0);
+  
+  // 4. Ativos e Ticket (baseado no contrato para projeção)
+  const ativos = clients.filter(c => c.status === 'ACTIVE');
+  const totalLiqContratos = ativos.reduce((s, c) => s + c.netRevenue, 0);
+  
+  // Usamos o maior valor entre a receita real (paga) e a contratada para o resultado mensal
+  const resultado = (receitaReal > 0 ? receitaReal : totalLiqContratos) - totalSaidas;
+  
   const deficit = Math.abs(resultado);
-  const folhaPJ = expenses * 0.675;
-  const fPct = expenses > 0 ? (folhaPJ / expenses * 100).toFixed(1) : '0';
-  const ticket = ativos.length > 0 ? totalLiq / ativos.length : 9835;
+  const folhaEstimada = stats?.folhaTotal || (totalSaidas * 0.65); // Estimativa se não houver stats
+  const fPct = totalSaidas > 0 ? ((folhaEstimada / totalSaidas) * 100).toFixed(1) : '0';
+  
+  const ticket = ativos.length > 0 ? totalLiqContratos / ativos.length : 0;
   const topCli = [...ativos].sort((a, b) => b.netRevenue - a.netRevenue)[0];
-  const topPct = topCli && totalLiq > 0 ? (topCli.netRevenue / totalLiq * 100).toFixed(1) : '0';
+  const topPct = topCli && totalLiqContratos > 0 ? (topCli.netRevenue / totalLiqContratos * 100).toFixed(1) : '0';
   const riscos = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
 
+  // ── Perguntas e Respostas Dinâmicas ──────────────────────────────────────────
   const qs = [
     {
       q: 'Posso contratar agora?', 
       badge: resultado < 0 ? 'no' : 'maybe' as const, 
       bl: resultado < 0 ? 'Não recomendado' : 'Condicionado',
       ans: resultado < 0
-        ? `Com déficit de ${BRL(deficit)}/mês e folha PJ em ${fPct}% das saídas, contratar agora aprofundaria o buraco. Em ${periodLabel}, o déficit acumulado seria ${BRL(deficit * months)}.\n\nCondição: trazer ao menos ${Math.ceil(6000 * 1.15 / ticket)} novos clientes antes de qualquer contratação.`
-        : `Resultado positivo de ${BRL(resultado)}/mês. Folha PJ está em ${fPct}% das saídas (limite: 45–50%). Qualquer contratação deve vir com receita adicional garantida.\n\nCusto de um PJ de R$ 6.000 no período: ${BRL(6000 * 1.15 * months)}.`
-    },
-    {
-      q: 'Posso fazer um investimento?', 
-      badge: 'maybe' as const, 
-      bl: 'Depende do payback',
-      ans: `Com resultado de ${BRL(resultado)}/mês, o teto seguro de investimento em ${periodLabel} é ${BRL(Math.max(0, resultado) * months)}.\n\nRegra: o retorno mensal deve recuperar o investimento em menos de ${Math.max(1, Math.round(months / 3))} meses. Invista somente com receita recorrente garantida.`
+        ? `Com déficit real de ${BRL(deficit)}/mês (considerando saídas de ${BRL(totalSaidas)}), contratar agora aumentaria a exposição. Em ${periodLabel}, o acumulado negativo seria ${BRL(deficit * months)}.\n\nMeta: Garantir ${Math.ceil(deficit / (ticket || 1))} novos contratos para zerar o caixa.`
+        : `Resultado positivo de ${BRL(resultado)}/mês. A folha representa ${fPct}% das saídas totais. O limite saudável para agências é 50%.\n\nCusto projetado de um novo PJ (R$ 6k) no período: ${BRL(6000 * 1.15 * months)}.`
     },
     {
       q: 'Vou ficar sem dinheiro?', 
       badge: resultado < 0 ? 'no' : 'maybe' as const, 
       bl: resultado < 0 ? 'Risco real' : 'Monitorar',
       ans: resultado < 0
-        ? `Com ${BRL(deficit)}/mês de déficit, em ${periodLabel} o impacto acumulado é ${BRL(deficit * months)}.\n\n• ${riscos.length} clientes com risco alto/crítico\n• Folha PJ de ${BRL(folhaPJ)}/mês sem cobertura\n\nAção urgente: prospectar ao menos ${Math.ceil(deficit / ticket)} novos clientes.`
-        : `Resultado de ${BRL(resultado)}/mês. Mantenha reserva mínima de 2 meses de custo fixo (${BRL(expenses * 2)}) como buffer de segurança.`
+        ? `Sim, se o cenário persistir. O déficit de ${BRL(deficit)}/mês consome ${BRL(deficit * months)} em ${periodLabel}.\n\n• ${riscos.length} clientes em risco alto/crítico.\n• Custos fixos atuais: ${BRL(totalSaidas)}.\n\nAção: Reduzir custos variáveis ou converter ${Math.ceil(deficit / (ticket || 1))} novos clientes imediatamente.`
+        : `Cenário estável com sobra de ${BRL(resultado)}/mês. Recomendado manter reserva de segurança de ${BRL(totalSaidas * 3)} (3 meses de operação).`
     },
     {
       q: 'Onde estou errando?', 
       badge: 'maybe' as const, 
-      bl: '3 pontos críticos',
-      ans: `1. Folha PJ em ${fPct}% das saídas — limite saudável é 45–50% do faturamento total.\n\n2. ${topCli ? `${topCli.name} representa ${topPct}% da receita (${BRL(topCli.netRevenue)}/mês) — concentração de risco.` : 'Analise a concentração de receita por cliente.'}\n\n3. Ticket médio (${BRL(ticket)}) vs custo por cliente (${BRL(expenses / Math.max(ativos.length, 1))}): para 20% de margem precisa de ${BRL(expenses / 0.8 / Math.max(ativos.length, 1))} por cliente.`
+      bl: 'Análise de Saúde',
+      ans: `1. Concentração: ${topCli ? `${topCli.name} detém ${topPct}% da sua receita.` : 'N/A'}\n\n2. Eficiência: Seu ticket médio é ${BRL(ticket)}. Para uma margem de 20%, seu custo por cliente não deveria passar de ${BRL(ticket * 0.8)}.\n\n3. Despesas: Você tem ${BRL(custosFinanceiros)} em saídas registradas este mês no Contas a Pagar.`
     },
   ];
 
@@ -80,30 +117,40 @@ export default function CeoPage({ searchParams }: { searchParams: { period?: str
   };
   const bi: { [k: string]: string } = { yes: '✓', no: '✗', maybe: '?' };
 
+  if (loading) return <div className="p-8 text-center text-gray-500">Analisando dados financeiros...</div>;
+
   return (
     <div className="space-y-4">
-      {stats && !stats.hasExpenseData && stats.folhaTotal === 0 && (
-        <Alert variant="info">
-          Cadastre a <a href="/colaboradores" className="underline font-medium">equipe e seus salários</a> para que as respostas usem seu custo fixo real.
+      {/* Alertas de Integridade de Dados */}
+      {transactions.length === 0 && (
+        <Alert variant="warn">
+          Nenhum dado encontrado no <strong>Contas a Pagar/Receber</strong>. Os cálculos abaixo são baseados apenas em contratos teóricos.
         </Alert>
       )}
-      <Alert variant="info">Respostas calculadas com {ativos.length} clientes ativos e projeção de {periodLabel}.</Alert>
       
-      {qs.map((p, i) => (
-        <div key={i} className="bg-white border border-gray-100 rounded-2xl p-6">
-          <p className="text-base font-semibold text-gray-900 mb-3">{p.q}</p>
-          <div 
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium mb-3" 
-            style={bs[p.badge] ? { 
-              backgroundColor: bs[p.badge].split(';')[0].split(':')[1], 
-              color: bs[p.badge].split(';')[1].split(':')[1] 
-            } : {}}
-          >
-            {bi[p.badge]} {p.bl}
+      {!stats?.hasExpenseData && (
+        <Alert variant="info">
+          Dica: Lance suas despesas fixas em <a href="/colaboradores" className="underline font-medium">Equipe</a> para uma análise de folha mais precisa.
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {qs.map((p, i) => (
+          <div key={i} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+            <p className="text-base font-semibold text-gray-900 mb-3">{p.q}</p>
+            <div 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium mb-3" 
+              style={bs[p.badge] ? { 
+                backgroundColor: bs[p.badge].split(';')[0].split(':')[1], 
+                color: bs[p.badge].split(';')[1].split(':')[1] 
+              } : {}}
+            >
+              {bi[p.badge]} {p.bl}
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{p.ans}</p>
           </div>
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{p.ans}</p>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
