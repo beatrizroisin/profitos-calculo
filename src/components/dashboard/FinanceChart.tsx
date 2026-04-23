@@ -6,13 +6,20 @@ import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
 interface Props {
-  totalPagar:    number;
-  totalReceber:  number;
-  pipelineNet:   number;
+ totalPagar: number;
+  totalReceber: number;
+  folhaTotal: number;        
+  despesasLancadas: number;   
+  pipelineNet: number;
   pipelineCount: number;
 }
 
-export function FinanceChart({ totalPagar, totalReceber, pipelineNet, pipelineCount }: Props) {
+export function FinanceChart({ totalPagar, 
+  totalReceber, 
+  folhaTotal, 
+  despesasLancadas, 
+  pipelineNet, 
+  pipelineCount }: Props) {
   const barRef  = useRef<HTMLCanvasElement>(null);
   const barCI   = useRef<Chart | null>(null);
   const [showPL, setShowPL] = useState(false);
