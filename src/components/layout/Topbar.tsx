@@ -13,7 +13,7 @@ export function Topbar({ userName, companyName, userRole, avatarUrl }: TopbarPro
   const pathname     = usePathname();
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const period       = searchParams.get('period') || '90d';
+  const period       = searchParams.get('period') || '30d';
   const showPeriod   = PERIOD_PAGES.some(p => pathname.startsWith(p));
 
   function setPeriod(key: string) {

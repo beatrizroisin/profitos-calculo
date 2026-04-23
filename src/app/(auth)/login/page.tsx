@@ -88,10 +88,10 @@ function LoginForm() {
         <Link href="/register" className="text-sm text-[#1A6B4A] font-medium hover:underline">Criar empresa →</Link>
       </div>
 
-      <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+      {/* <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
         <p className="text-xs font-medium text-gray-500 mb-1">Credenciais de demonstração:</p>
         <p className="text-xs text-gray-600">admin@demo.com / Demo@2026</p>
-      </div>
+      </div> */}
     </div>
   );
 }

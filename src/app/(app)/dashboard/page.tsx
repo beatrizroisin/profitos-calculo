@@ -1,4 +1,6 @@
-// src/app/(app)/dashboard/page.tsx
+// src/app/(app)/dashboard/page.tsx — v3.7 COMPLETO
+// DRE estruturado, inadimplência, fluxo de caixa projetado, margem por cliente,
+// alerta de concentração, break-even — todos implementados.
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -11,166 +13,249 @@ interface Props { searchParams: { period?: string; pipeline?: string } }
 
 const MONTHS_MAP:   Record<string, number> = { '30d': 1, '60d': 2, '90d': 3, '6m': 6, '1y': 12, '2y': 24 };
 const PERIOD_LABEL: Record<string, string> = { '30d':'30 dias','60d':'60 dias','90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' };
+const MONTH_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 export default async function DashboardPage({ searchParams }: Props) {
   const session      = await getServerSession(authOptions);
   const companyId    = (session!.user as any).companyId;
-  const period       = searchParams.period || '90d';
-  const months       = MONTHS_MAP[period] || 3;
+  const period       = searchParams.period || '30d';
+  const months       = MONTHS_MAP[period] || 1;
   const showPipeline = searchParams.pipeline === '1';
-  const periodLabel  = PERIOD_LABEL[period] || '90 dias';
+  const periodLabel  = PERIOD_LABEL[period] || '30 dias';
+  const now          = new Date();
+  const today        = now.getDate();
+  const thisMonth    = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonth    = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const [clients, collaborators, txExpenseAgg] = await Promise.all([
+  const [clients, collaborators, txExpenseAgg, txExpensePending, txOverdue, txPaidThisMonth] = await Promise.all([
     prisma.client.findMany({ where: { companyId } }),
-    prisma.collaborator.findMany({
-      where:  { companyId, isActive: true },
-      select: { salary: true },
-    }),
-    // Aggregate pagar × receber totals
-    prisma.transaction.aggregate({
-      where: { companyId, type: 'EXPENSE', status: { not: 'CANCELLED' } },
-      _sum:  { amount: true },
-    }),
+    prisma.collaborator.findMany({ where: { companyId, isActive: true }, select: { salary: true, name: true } }),
+    prisma.transaction.aggregate({ where: { companyId, type: 'EXPENSE', status: { not: 'CANCELLED' } }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { companyId, type: 'EXPENSE', status: { in: ['PENDING','OVERDUE'] } }, _sum: { amount: true } }),
+    prisma.transaction.findMany({ where: { companyId, type: 'INCOME', status: 'OVERDUE' }, select: { amount: true, description: true, clientId: true, dueDate: true, client: { select: { name: true } } } }),
+    prisma.transaction.findMany({ where: { companyId, type: 'INCOME', status: 'PAID', paidAt: { gte: thisMonth, lt: nextMonth } }, select: { clientId: true } }),
   ]);
 
   const active   = clients.filter(c => c.status === 'ACTIVE');
   const pipeline = clients.filter(c => c.status === 'PIPELINE');
-  const displayed = showPipeline ? [...active, ...pipeline] : active;
 
-  const monthlyNet      = active.reduce((s, c) => s + c.netRevenue, 0);
-  const monthlyGross    = active.reduce((s, c) => s + c.grossRevenue, 0);
-  const monthlyTax      = monthlyGross - monthlyNet;
-  const recurringRev    = active.filter(c => c.isRecurring).reduce((s, c) => s + c.netRevenue, 0);
-  const ticketMedio     = active.length > 0 ? monthlyNet / active.length : 0;
+  const monthlyNet   = active.reduce((s, c) => s + c.netRevenue, 0);
+  const monthlyGross = active.reduce((s, c) => s + c.grossRevenue, 0);
+  const monthlyTax   = monthlyGross - monthlyNet;
+  const recurringRev = active.filter(c => c.isRecurring).reduce((s, c) => s + c.netRevenue, 0);
+  const ticketMedio  = active.length > 0 ? monthlyNet / active.length : 0;
+  const pipelineNet  = pipeline.reduce((s, c) => s + c.netRevenue, 0);
+  const pipelineRec  = pipeline.filter(c => c.isRecurring).length;
+  const pipelinePon  = pipeline.filter(c => !c.isRecurring).length;
 
-  const pipelineNet        = pipeline.reduce((s, c) => s + c.netRevenue, 0);
-  const pipelineRecurring  = pipeline.filter(c => c.isRecurring).length;
-  const pipelinePontual    = pipeline.filter(c => !c.isRecurring).length;
+  // Costs
+  const folhaTotal        = collaborators.reduce((s, c) => s + c.salary, 0);
+  const despesasLancadas  = txExpenseAgg._sum.amount ?? 0;
+  const despesasPendentes = txExpensePending._sum.amount ?? 0;
+  const totalCustoMensal  = folhaTotal + despesasLancadas;
 
-  const folhaTotal     = collaborators.reduce((s, c) => s + c.salary, 0);
-  const resultado      = monthlyNet - folhaTotal;
-  const marginPct      = monthlyNet > 0 ? resultado / monthlyNet * 100 : 0;
-  const folhaPct       = monthlyNet > 0 ? (folhaTotal / monthlyNet) * 100 : 0;
-  const resultadoComPipeline = (monthlyNet + pipelineNet) - folhaTotal;
+  // P&L
+  const resultado          = monthlyNet - totalCustoMensal;
+  const marginPct          = monthlyNet > 0 ? resultado / monthlyNet * 100 : 0;
+  const folhaPct           = monthlyNet > 0 ? folhaTotal / monthlyNet * 100 : 0;
+  const resultadoComPL     = (monthlyNet + pipelineNet) - totalCustoMensal;
 
-  // Pagar × Receber totals from transactions table
-  const totalPagar   = txExpenseAgg._sum.amount ?? 0;
-  const totalReceber = monthlyNet;
+  // ── INADIMPLÊNCIA ────────────────────────────────────────────────────────
+  const paidClientIds = new Set(txPaidThisMonth.map(t => t.clientId).filter(Boolean));
+  const defaulters    = active.filter(c => c.isRecurring && (c as any).dueDay <= today && !paidClientIds.has(c.id));
+  const overdueRevenue = txOverdue.reduce((s, t) => s + t.amount, 0);
+  const inadRevenue    = defaulters.reduce((s, c) => s + c.netRevenue, 0);
 
-  const topClients  = [...displayed].sort((a, b) => b.netRevenue - a.netRevenue).slice(0, 6);
-  const maxRev      = topClients[0]?.netRevenue || 1;
-  const riskClients = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
+  // ── CONCENTRAÇÃO ────────────────────────────────────────────────────────
+  const sorted         = [...active].sort((a, b) => b.netRevenue - a.netRevenue);
+  const biggestClient  = sorted[0];
+  const concRisk       = monthlyNet > 0 && biggestClient ? biggestClient.netRevenue / monthlyNet * 100 : 0;
 
-  const riskColor: Record<string, 'red' | 'amber' | 'green'> = {
-    LOW: 'green', MEDIUM: 'amber', HIGH: 'red', CRITICAL: 'red',
-  };
+  // ── BREAK-EVEN ───────────────────────────────────────────────────────────
+  const breakEven      = ticketMedio > 0 ? Math.ceil(totalCustoMensal / ticketMedio) : 0;
+  const breakEvenGap   = Math.max(0, breakEven - active.length);
 
-  const togglePipelineUrl = showPipeline
-    ? `?period=${period}`
-    : `?period=${period}&pipeline=1`;
+  // ── MARGEM UNITÁRIA POR CLIENTE ─────────────────────────────────────────
+  const clientMargins = sorted.map(c => {
+    const share        = monthlyNet > 0 ? c.netRevenue / monthlyNet : 0;
+    const custoAlocado = totalCustoMensal * share;
+    const margem       = c.netRevenue - custoAlocado;
+    const margemPct    = c.netRevenue > 0 ? margem / c.netRevenue * 100 : 0;
+    return { ...c, custoAlocado, margem, margemPct };
+  });
+
+  // ── CASHFLOW 6 MESES ─────────────────────────────────────────────────────
+  const cashflow = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
+    return { mes: MONTH_SHORT[d.getMonth()] + '/' + String(d.getFullYear()).slice(2), receita: monthlyNet, custo: totalCustoMensal, saldo: resultado, acum: resultado * (i + 1) };
+  });
+
+  // Misc
+  const topClients    = [...(showPipeline ? [...active, ...pipeline] : active)].sort((a, b) => b.netRevenue - a.netRevenue).slice(0, 6);
+  const maxRev        = topClients[0]?.netRevenue || 1;
+  const riskClients   = clients.filter(c => c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL');
+  const togglePLUrl   = showPipeline ? `?period=${period}` : `?period=${period}&pipeline=1`;
+  const riskColor: Record<string, 'red'|'amber'|'green'> = { LOW:'green', MEDIUM:'amber', HIGH:'red', CRITICAL:'red' };
+
+  const marginColor = (p: number) => p >= 25 ? 'text-green-700' : p >= 10 ? 'text-amber-600' : 'text-red-600';
+  const marginBg    = (p: number) => p >= 25 ? 'bg-green-50' : p >= 10 ? 'bg-amber-50' : 'bg-red-50';
 
   return (
     <div className="space-y-5">
 
-      {/* Pipeline toggle banner */}
+      {/* Pipeline banner */}
       {pipeline.length > 0 && (
         <div className={`flex items-center justify-between p-3 rounded-xl border ${showPipeline ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'}`}>
           <div className="flex items-center gap-3">
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${showPipeline ? 'bg-blue-500' : 'bg-gray-400'}`}/>
-            <div>
-              <p className="text-xs font-medium text-gray-800">
-                {pipeline.length} {pipeline.length === 1 ? 'possível entrada' : 'possíveis entradas'} no pipeline —{' '}
-                <span className="text-blue-700 font-semibold">{BRL(pipelineNet)}/mês potencial</span>
-                
-                {pipelineRecurring > 0 && (
-                  <span className="text-blue-600">
-                    · {pipelineRecurring} {pipelineRecurring > 1 ? 'recorrentes' : 'recorrente'}
-                  </span>
-                )}
-                
-                {pipelinePontual > 0 && (
-                  <span className="text-blue-500">
-                    · {pipelinePontual} {pipelinePontual > 1 ? 'pontuais' : 'pontual'}
-                  </span>
-                )}
-              </p>
-              <p className="text-[10.5px] text-gray-500 mt-0.5">
-                {showPipeline
-                  ? `Projeção ativa — resultado projetado: ${BRL(resultadoComPipeline)}/mês`
-                  : 'Inclua o pipeline para ver o potencial de crescimento'}
-              </p>
-            </div>
+            <p className="text-xs font-medium text-gray-800">
+              {pipeline.length} possíve{pipeline.length === 1 ? 'l entrada' : 'is entradas'} no pipeline —{' '}
+              <span className="text-blue-700 font-semibold">{BRL(pipelineNet)}/mês potencial</span>
+              {pipelineRec > 0 && <span className="text-blue-600"> · {pipelineRec} recorrente{pipelineRec > 1 ? 's' : ''}</span>}
+              {pipelinePon > 0 && <span className="text-blue-500"> · {pipelinePon} pontual{pipelinePon > 1 ? 'is' : ''}</span>}
+            </p>
           </div>
-          <Link href={togglePipelineUrl}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
-              showPipeline ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}>
+          <Link href={togglePLUrl} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${showPipeline ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
             {showPipeline ? 'Ocultar pipeline' : 'Ver com pipeline'}
           </Link>
         </div>
       )}
 
-      {/* Setup nudges */}
       {active.length === 0 && pipeline.length === 0 && (
-        <Alert variant="info">
-          <strong>Bem-vindo ao profitOS.</strong>{' '}
-          Comece cadastrando seus <Link href="/clientes?new=1" className="underline font-medium">clientes</Link>{' '}
-          e a sua <Link href="/colaboradores" className="underline font-medium">equipe</Link>.
-        </Alert>
-      )}
-      {active.length > 0 && folhaTotal === 0 && (
-        <Alert variant="info">
-          Cadastre a <Link href="/colaboradores" className="underline font-medium">equipe e seus salários</Link>{' '}
-          para calcular margem e ocupação do time.
-        </Alert>
+        <Alert variant="info"><strong>Bem-vindo.</strong> Cadastre <Link href="/clientes?new=1" className="underline font-medium">clientes</Link> e a sua <Link href="/colaboradores" className="underline font-medium">equipe</Link> para ativar o dashboard.</Alert>
       )}
 
-      {/* KPIs row 1 */}
+      {/* ── 1. DRE MENSAL ── */}
+      <Card title="DRE — Demonstrativo de resultado do mês" subtitle={`Competência: ${now.toLocaleString('pt-BR',{month:'long',year:'numeric'})} · ${periodLabel}`}>
+        <div className="grid grid-cols-3 gap-4">
+          {/* Coluna Receita */}
+          <div>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Receita</p>
+            {[
+              ['Receita bruta', BRL(monthlyGross * months), 'text-gray-800'],
+              ['(–) Impostos / deduções', `–${BRL(monthlyTax * months)}`, 'text-amber-600'],
+            ].map(([l,v,c]) => (
+              <div key={l as string} className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                <span className="text-xs text-gray-500">{l}</span>
+                <span className={`text-xs font-medium tabular-nums ${c}`}>{v}</span>
+              </div>
+            ))}
+            <div className="flex justify-between items-center py-2 mt-1 rounded-lg bg-green-50 px-2">
+              <span className="text-xs font-semibold text-green-800">= Receita líquida</span>
+              <span className="text-xs font-bold tabular-nums text-green-700">{BRL(monthlyNet * months)}</span>
+            </div>
+          </div>
+          {/* Coluna Custos */}
+          <div>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Custos operacionais</p>
+            {[
+              ['Folha de pagamento', `–${BRL(folhaTotal * months)}`, 'text-red-600'],
+              ['Despesas lançadas', `–${BRL(despesasLancadas * months)}`, 'text-orange-500'],
+            ].map(([l,v,c]) => (
+              <div key={l as string} className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                <span className="text-xs text-gray-500">{l}</span>
+                <span className={`text-xs font-medium tabular-nums ${c}`}>{v}</span>
+              </div>
+            ))}
+            <div className="flex justify-between items-center py-2 mt-1 rounded-lg bg-red-50 px-2">
+              <span className="text-xs font-semibold text-red-800">= Total de custos</span>
+              <span className="text-xs font-bold tabular-nums text-red-700">–{BRL(totalCustoMensal * months)}</span>
+            </div>
+          </div>
+          {/* Coluna Resultado */}
+          <div>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Resultado</p>
+            {[
+              ['Margem bruta (s/ impostos)', pct(monthlyGross > 0 ? (monthlyNet - folhaTotal) / monthlyGross * 100 : 0), 'text-gray-600'],
+              ['Margem operacional real', pct(marginPct), resultado >= 0 ? 'text-green-600' : 'text-red-600'],
+              ['Folha / receita líquida', pct(folhaPct), folhaPct > 60 ? 'text-red-600' : folhaPct > 45 ? 'text-amber-600' : 'text-green-600'],
+            ].map(([l,v,c]) => (
+              <div key={l as string} className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                <span className="text-xs text-gray-500">{l}</span>
+                <span className={`text-xs font-medium ${c}`}>{v}</span>
+              </div>
+            ))}
+            <div className={`flex justify-between items-center py-2 mt-1 rounded-lg px-2 ${resultado >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+              <span className={`text-xs font-semibold ${resultado >= 0 ? 'text-green-800' : 'text-red-800'}`}>= Lucro / prejuízo</span>
+              <span className={`text-xs font-bold tabular-nums ${resultado >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                {resultado >= 0 ? '+' : ''}{BRL(resultado * months)}
+              </span>
+            </div>
+          </div>
+        </div>
+        {/* Break-even */}
+        {breakEven > 0 && (
+          <div className={`mt-3 p-3 rounded-lg border flex items-center gap-4 ${breakEvenGap > 0 ? 'bg-amber-50 border-amber-100' : 'bg-green-50 border-green-100'}`}>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-500">Break-even</p>
+              <p className={`text-base font-bold tabular-nums mt-0.5 ${breakEvenGap > 0 ? 'text-amber-700' : 'text-green-700'}`}>{breakEven} clientes</p>
+            </div>
+            <div className="text-xs text-gray-500 flex-1">
+              {breakEvenGap > 0
+                ? <><strong className="text-amber-700">Faltam {breakEvenGap} clientes</strong> para cobrir custo total de {BRL(totalCustoMensal)}/mês com ticket médio de {BRL(ticketMedio)}.</>
+                : <><strong className="text-green-700">Break-even atingido.</strong> Com {active.length} clientes cobrindo {BRL(totalCustoMensal)} de custo ({BRL(ticketMedio)} ticket médio). Cada cliente adicional gera {BRL(ticketMedio * (marginPct / 100))} de margem.</>
+              }
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* ── 2. KPIs linha 1 ── */}
       <Grid4>
-        <KPICard
-          label={`Entradas (${periodLabel})`}
-          value={BRL((showPipeline ? monthlyNet + pipelineNet : monthlyNet) * months)}
-          sub={showPipeline
-            ? `${BRL(monthlyNet)} ativo + ${BRL(pipelineNet)} pipeline`
-            : `${BRL(monthlyNet)}/mês · ${active.length} clientes`}
-          color="green" accentColor="#1A6B4A"
-        />
-        <KPICard
-          label={`Folha / custo fixo (${periodLabel})`}
-          value={BRL(folhaTotal * months)}
-          sub={folhaTotal > 0 ? `${BRL(folhaTotal)}/mês · ${collaborators.length} colaboradores` : 'Cadastre a equipe'}
-          color="red" accentColor="#DC3545"
-        />
-        <KPICard
-          label={`Resultado (${periodLabel})`}
-          value={BRL((showPipeline ? resultadoComPipeline : resultado) * months)}
-          sub={showPipeline ? 'projeção com pipeline' : `${pct(marginPct)} de margem`}
-          color={(showPipeline ? resultadoComPipeline : resultado) >= 0 ? 'green' : 'red'}
-          accentColor={(showPipeline ? resultadoComPipeline : resultado) >= 0 ? '#1A6B4A' : '#DC3545'}
-        />
-        <KPICard label="Ticket médio líquido" value={BRL(ticketMedio)} sub={`imposto: ${BRL(monthlyTax)}/mês`} color="blue" />
+        <KPICard label={`Receita líquida (${periodLabel})`} value={BRL((showPipeline ? monthlyNet + pipelineNet : monthlyNet) * months)}
+          sub={showPipeline ? `${BRL(monthlyNet)} ativo + ${BRL(pipelineNet)} pipeline` : `${BRL(monthlyNet)}/mês · ${active.length} clientes`}
+          color="green" accentColor="#1A6B4A" />
+        <KPICard label={`Custo total (${periodLabel})`} value={BRL(totalCustoMensal * months)}
+          sub={`Folha ${BRL(folhaTotal)} + Desp. ${BRL(despesasLancadas)}`}
+          color="red" accentColor="#DC3545" />
+        <KPICard label={`Resultado (${periodLabel})`} value={BRL((showPipeline ? resultadoComPL : resultado) * months)}
+          sub={showPipeline ? 'projeção com pipeline' : `${pct(marginPct)} de margem real`}
+          color={(showPipeline ? resultadoComPL : resultado) >= 0 ? 'green' : 'red'}
+          accentColor={(showPipeline ? resultadoComPL : resultado) >= 0 ? '#1A6B4A' : '#DC3545'} />
+        <KPICard label="Ticket médio líquido" value={BRL(ticketMedio)} sub={`break-even: ${breakEven} clientes`} color="blue" />
       </Grid4>
 
-      {/* KPIs row 2 */}
+      {/* ── 2. KPIs linha 2 ── */}
       <Grid4>
-        <KPICard label="Receita bruta/mês"     value={BRL(monthlyGross)} sub={`líquido: ${BRL(monthlyNet)}`} />
-        <KPICard
-          label="Folha / receita líquida"
-          value={folhaTotal > 0 ? pct(folhaPct) : '—'}
-          sub={folhaTotal > 0 ? 'limite saudável: 50%' : 'Cadastre colaboradores'}
-          color={folhaPct > 50 ? 'red' : 'amber'}
-        />
-        <KPICard label="Clientes ativos"   value={String(active.length)}   sub={`${pipeline.length} no pipeline`} color="blue" />
-        <KPICard label="Receita recorrente" value={BRL(recurringRev)}       sub="mensal garantida" color="green" />
+        <KPICard label="Folha de pagamento" value={BRL(folhaTotal)}
+          sub={`${collaborators.length} colaboradores · ${pct(folhaPct)} receita`}
+          color={folhaPct > 60 ? 'red' : 'amber'} />
+        <KPICard label="Despesas lançadas" value={BRL(despesasLancadas)}
+          sub={despesasPendentes > 0 ? `${BRL(despesasPendentes)} pendente/vencido` : 'todas quitadas'}
+          color={despesasPendentes > 0 ? 'amber' : 'default'} />
+        <KPICard label="Inadimplência estimada" value={inadRevenue > 0 ? BRL(inadRevenue) : 'Nenhuma'}
+          sub={inadRevenue > 0 ? `${defaulters.length} clientes não pagaram` : 'todos em dia'}
+          color={inadRevenue > 0 ? 'red' : 'green'} accentColor={inadRevenue > 0 ? '#DC3545' : '#1A6B4A'} />
+        <KPICard label="Receita recorrente" value={BRL(recurringRev)} sub="mensal garantida" color="green" />
       </Grid4>
 
-      {/* Alerts */}
-      {resultado < 0 && folhaTotal > 0 && (
+      {/* ── ALERTS CFO ── */}
+      {resultado < 0 && (
         <Alert variant="danger">
-          <strong>Déficit de {BRL(Math.abs(resultado))}/mês.</strong>{' '}
-          Folha ({BRL(folhaTotal)}) supera receita líquida ({BRL(monthlyNet)}).{' '}
-          Em {periodLabel}: {BRL(Math.abs(resultado * months))}.
-          {pipeline.length > 0 && !showPipeline && ` Com o pipeline: ${BRL(resultadoComPipeline)}/mês.`}
+          <strong>Resultado negativo: {BRL(Math.abs(resultado))}/mês.</strong>{' '}
+          Folha ({BRL(folhaTotal)}) + Despesas ({BRL(despesasLancadas)}) = {BRL(totalCustoMensal)} vs. receita {BRL(monthlyNet)}.
+          {pipeline.length > 0 && !showPipeline && ` Com o pipeline: ${BRL(resultadoComPL)}/mês.`}
+        </Alert>
+      )}
+      {resultado >= 0 && folhaPct > 60 && (
+        <Alert variant="warn">
+          <strong>Folha representa {pct(folhaPct)} da receita.</strong>{' '}
+          Limite saudável para agências: 50%. Considere otimizar alocações ou aumentar receita.
+        </Alert>
+      )}
+      {concRisk > 30 && biggestClient && (
+        <Alert variant="warn">
+          <strong>Risco de concentração:</strong>{' '}
+          {biggestClient.name} representa {concRisk.toFixed(1)}% da receita ({BRL(biggestClient.netRevenue)}/mês).
+          Diversifique a carteira.
+        </Alert>
+      )}
+      {(defaulters.length > 0 || txOverdue.length > 0) && (
+        <Alert variant="warn">
+          <strong>Possível inadimplência:</strong>{' '}
+          {defaulters.length > 0 && `${defaulters.length} cliente(s) recorrente(s) sem confirmação de pagamento este mês (${BRL(inadRevenue)}). `}
+          {txOverdue.length > 0 && `${txOverdue.length} lançamento(s) de receita vencidos (${BRL(overdueRevenue)}).`}
+          {' '}<Link href="/receber" className="underline">Ver em Contas a receber →</Link>
         </Alert>
       )}
       {riskClients.length > 0 && (
@@ -181,133 +266,125 @@ export default async function DashboardPage({ searchParams }: Props) {
         </Alert>
       )}
 
-      {/* MAIN GRID: receita + pagar×receber */}
+      {/* ── 3. MAIN GRID: gráfico receita + fluxo pagar×receber ── */}
       <Grid2>
-        <Card
-          title={showPipeline ? 'Receita por cliente (ativos + pipeline)' : 'Receita por cliente (top 6)'}
+        <Card title={showPipeline ? 'Receita por cliente (ativos + pipeline)' : 'Receita por cliente (top 6)'}
           subtitle={showPipeline ? 'Azul = ativo · Roxo = pipeline' : 'Carteira ativa — líquido mensal'}>
           {topClients.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-400">
-              Nenhum cliente ativo.{' '}
-              <Link href="/clientes?new=1" className="text-[#1A6B4A] underline">Adicionar →</Link>
+              Nenhum cliente ativo. <Link href="/clientes?new=1" className="text-[#1A6B4A] underline">Adicionar →</Link>
             </div>
           ) : (
             <div>
               {topClients.map(c => (
-                <BarRow
-                  key={c.id}
-                  label={c.name.split(' ').slice(0, 2).join(' ')}
-                  value={BRL(c.netRevenue)}
-                  pct={c.netRevenue / maxRev * 100}
-                  color={c.status === 'PIPELINE' ? '#7C3AED' : '#2563EB'}
-                />
+                <BarRow key={c.id} label={c.name.split(' ').slice(0,2).join(' ')} value={BRL(c.netRevenue)}
+                  pct={c.netRevenue / maxRev * 100} color={c.status === 'PIPELINE' ? '#7C3AED' : '#2563EB'} />
               ))}
             </div>
           )}
         </Card>
-
-        <Card
-          title="Contas a pagar × receber"
-          subtitle="Lançamentos cadastrados — com toggle de pipeline">
-          <FinanceChart
-            totalPagar={totalPagar}
-            totalReceber={totalReceber}
-            pipelineNet={pipelineNet}
-            pipelineCount={pipeline.length}
-          />
+        <Card title="Fluxo do mês — A pagar × A receber" subtitle="Folha + despesas vs. receita mensal dos clientes ativos">
+          <FinanceChart totalPagar={totalCustoMensal} totalReceber={monthlyNet}
+            folhaTotal={folhaTotal} despesasLancadas={despesasLancadas}
+            pipelineNet={pipelineNet} pipelineCount={pipeline.length} />
         </Card>
       </Grid2>
 
-      {/* PIPELINE DETAIL SECTION — always visible when pipeline exists */}
-      {pipeline.length > 0 && (
-        <Card
-          title="Possíveis entradas — pipeline"
-          subtitle={`${pipeline.length} oportunidade${pipeline.length !== 1 ? 's' : ''} · ${BRL(pipelineNet)}/mês potencial · ${BRL(resultadoComPipeline)}/mês resultado projetado`}
-          action={
-            <Link href="/clientes?status=PIPELINE"
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">
-              Ver todos →
-            </Link>
-          }>
-          {/* Summary row */}
-          <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b border-gray-50">
-            <div>
-              <p className="text-[9px] text-blue-600 uppercase tracking-wider font-medium">Receita potencial/mês</p>
-              <p className="text-base font-semibold text-blue-800 tabular-nums mt-0.5">{BRL(pipelineNet)}</p>
-              <p className="text-[10px] text-blue-500 mt-0.5">bruto: {BRL(pipeline.reduce((s,c) => s + c.grossRevenue, 0))}</p>
-            </div>
-            <div>
-              <p className="text-[9px] text-blue-600 uppercase tracking-wider font-medium">Recorrentes / Pontuais</p>
-              <p className="text-base font-semibold text-blue-800 mt-0.5">
-                {pipelineRecurring} rec. · {pipelinePontual} pont.
-              </p>
-              <p className="text-[10px] text-blue-500 mt-0.5">de {pipeline.length} oportunidade{pipeline.length !== 1 ? 's' : ''}</p>
-            </div>
-            <div>
-              <p className="text-[9px] text-blue-600 uppercase tracking-wider font-medium">Resultado se converter tudo</p>
-              <p className={`text-base font-semibold tabular-nums mt-0.5 ${resultadoComPipeline >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                {BRL(resultadoComPipeline)}/mês
-              </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">vs. atual: {BRL(resultado)}/mês</p>
-            </div>
-          </div>
-
-          {/* Client table */}
+      {/* ── 4. INADIMPLÊNCIA ── */}
+      {(defaulters.length > 0 || txOverdue.length > 0) && (
+        <Card title="Inadimplência — clientes sem confirmação de pagamento"
+          subtitle={`Mês: ${now.toLocaleString('pt-BR',{month:'long'})} · Clientes recorrentes com vencimento passado e sem registro de pagamento`}
+          action={<Link href="/receber" className="text-xs font-medium text-red-600 hover:text-red-700">Gerenciar →</Link>}>
           <div className="overflow-x-auto">
-            <table className="w-full" style={{ minWidth: 480 }}>
+            <table className="w-full" style={{ minWidth: 400 }}>
               <thead>
                 <tr>
-                  <th className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Cliente</th>
-                  <th className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Serviço</th>
-                  <th className="text-center text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Tipo</th>
-                  <th className="text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Rec. bruta</th>
-                  <th className="text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Rec. líquida</th>
-                  <th className="text-center text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Risco</th>
+                  {['Cliente','Dia venc.','Receita/mês','Status'].map(h => (
+                    <th key={h} className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {[...pipeline].sort((a, b) => b.netRevenue - a.netRevenue).map(c => (
-                  <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="py-2.5 pr-3">
-                      <p className="text-xs font-medium text-gray-800">{c.name}</p>
-                      {c.notes && <p className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[160px]">{c.notes}</p>}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <span className="text-[10.5px] text-gray-500">{SERVICE_TYPE_LABELS[c.serviceType]}</span>
-                    </td>
-                    <td className="py-2.5 pr-3 text-center">
-                      <span className={`text-[9.5px] font-medium px-1.5 py-0.5 rounded-full ${
-                        c.isRecurring
-                          ? 'bg-green-50 text-green-700'
-                          : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {c.isRecurring ? 'Recorrente' : 'Pontual'}
+                {defaulters.map(c => (
+                  <tr key={c.id} className="border-b border-gray-50 last:border-0 bg-red-50/30">
+                    <td className="py-2 pr-3 text-xs font-medium text-gray-800">{c.name}</td>
+                    <td className="py-2 pr-3 text-xs text-gray-500">dia {(c as any).dueDay}</td>
+                    <td className="py-2 pr-3 text-right text-xs font-semibold text-red-700 tabular-nums">{BRL(c.netRevenue)}</td>
+                    <td className="py-2">
+                      <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                        Sem confirmação
                       </span>
                     </td>
-                    <td className="py-2.5 pr-3 text-right">
-                      <span className="text-xs text-gray-600 tabular-nums">{BRL(c.grossRevenue)}</span>
+                  </tr>
+                ))}
+                {txOverdue.map((t, i) => (
+                  <tr key={`ov-${i}`} className="border-b border-gray-50 last:border-0 bg-orange-50/30">
+                    <td className="py-2 pr-3 text-xs font-medium text-gray-800">{t.client?.name || t.description}</td>
+                    <td className="py-2 pr-3 text-xs text-gray-500">{new Date(t.dueDate).toLocaleDateString('pt-BR')}</td>
+                    <td className="py-2 pr-3 text-right text-xs font-semibold text-orange-700 tabular-nums">{BRL(t.amount)}</td>
+                    <td className="py-2"><span className="text-[9.5px] font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Vencido</span></td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-100 bg-gray-50">
+                  <td colSpan={2} className="py-2 text-xs font-semibold text-gray-600">Total inadimplência estimada</td>
+                  <td className="py-2 text-right text-xs font-bold text-red-700 tabular-nums">{BRL(inadRevenue + overdueRevenue)}</td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* ── 5. MARGEM UNITÁRIA POR CLIENTE ── */}
+      {clientMargins.length > 0 && (
+        <Card title="Margem unitária por cliente" subtitle="Custo distribuído proporcionalmente por receita — quanto cada cliente contribui para o resultado">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ minWidth: 560 }}>
+              <thead>
+                <tr>
+                  {['Cliente','Receita líq.','Custo aloc.','Margem R$','Margem %','Status'].map(h => (
+                    <th key={h} className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {clientMargins.map(c => (
+                  <tr key={c.id} className={`border-b border-gray-50 last:border-0 hover:bg-gray-50/50 ${c.margemPct < 10 ? 'bg-red-50/20' : ''}`}>
+                    <td className="py-2.5 pr-3">
+                      <p className="text-xs font-medium text-gray-800">{c.name.split(' ').slice(0,3).join(' ')}</p>
+                      <p className="text-[9.5px] text-gray-400">{c.isRecurring ? 'Recorrente' : 'Pontual'}</p>
                     </td>
-                    <td className="py-2.5 pr-3 text-right">
-                      <span className="text-xs font-semibold text-blue-700 tabular-nums">{BRL(c.netRevenue)}</span>
-                      <p className="text-[9px] text-gray-400">{c.taxRate}% imp.</p>
+                    <td className="py-2.5 pr-3 text-right text-xs text-gray-600 tabular-nums">{BRL(c.netRevenue)}</td>
+                    <td className="py-2.5 pr-3 text-right text-xs text-red-500 tabular-nums">–{BRL(c.custoAlocado)}</td>
+                    <td className={`py-2.5 pr-3 text-right text-xs font-semibold tabular-nums ${c.margem >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                      {c.margem >= 0 ? '+' : ''}{BRL(c.margem)}
                     </td>
-                    <td className="py-2.5 text-center">
-                      <Pill
-                        label={RISK_LABELS[c.riskLevel]}
-                        variant={riskColor[c.riskLevel]}
-                      />
+                    <td className="py-2.5 pr-3">
+                      <div className={`inline-flex px-2 py-0.5 rounded-full text-[9.5px] font-semibold ${marginBg(c.margemPct)} ${marginColor(c.margemPct)}`}>
+                        {c.margemPct.toFixed(1)}%
+                      </div>
+                    </td>
+                    <td className="py-2.5">
+                      <Pill label={RISK_LABELS[c.riskLevel]} variant={riskColor[c.riskLevel]} />
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-100 bg-gray-50/50">
-                  <td colSpan={3} className="py-2 text-xs font-semibold text-gray-600 pl-0">Total pipeline</td>
-                  <td className="py-2 text-right text-xs font-semibold text-gray-600 tabular-nums">
-                    {BRL(pipeline.reduce((s,c) => s + c.grossRevenue, 0))}
+                <tr className="border-t-2 border-gray-100 bg-gray-50">
+                  <td className="py-2 text-xs font-semibold text-gray-600">Total</td>
+                  <td className="py-2 text-right text-xs font-semibold text-gray-600 tabular-nums">{BRL(monthlyNet)}</td>
+                  <td className="py-2 text-right text-xs font-semibold text-red-600 tabular-nums">–{BRL(totalCustoMensal)}</td>
+                  <td className={`py-2 text-right text-xs font-bold tabular-nums ${resultado >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {resultado >= 0 ? '+' : ''}{BRL(resultado)}
                   </td>
-                  <td className="py-2 text-right text-xs font-bold text-blue-700 tabular-nums">
-                    {BRL(pipelineNet)}
+                  <td>
+                    <div className={`inline-flex px-2 py-0.5 rounded-full text-[9.5px] font-semibold ${marginBg(marginPct)} ${marginColor(marginPct)}`}>
+                      {marginPct.toFixed(1)}%
+                    </div>
                   </td>
                   <td/>
                 </tr>
@@ -317,22 +394,86 @@ export default async function DashboardPage({ searchParams }: Props) {
         </Card>
       )}
 
-      {/* Risk clients */}
-      {riskClients.length > 0 && (
-        <Card title="Clientes em risco" subtitle="Alto e crítico — atenção imediata">
-          <div className="space-y-2">
-            {riskClients.slice(0, 6).map(c => (
-              <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                <div>
-                  <p className="text-xs font-medium text-gray-800">{c.name.slice(0, 30)}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{SERVICE_TYPE_LABELS[c.serviceType]}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Pill label={RISK_LABELS[c.riskLevel]} variant={riskColor[c.riskLevel]} />
-                  <span className="text-xs font-medium text-gray-700 tabular-nums">{BRL(c.netRevenue)}</span>
-                </div>
-              </div>
-            ))}
+      {/* ── 6. FLUXO DE CAIXA PROJETADO 6 MESES ── */}
+      <Card title="Projeção de caixa — próximos 6 meses"
+        subtitle="Baseado na receita e custo atual. Sem crescimento assumido (cenário conservador).">
+        <div className="overflow-x-auto">
+          <table className="w-full" style={{ minWidth: 480 }}>
+            <thead>
+              <tr>
+                <th className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Mês</th>
+                <th className="text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Receita</th>
+                <th className="text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Custo</th>
+                <th className="text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Saldo mês</th>
+                <th className="text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Caixa acumulado</th>
+                <th className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cashflow.map((m, i) => (
+                <tr key={i} className={`border-b border-gray-50 last:border-0 ${m.saldo < 0 ? 'bg-red-50/20' : 'hover:bg-gray-50/50'}`}>
+                  <td className="py-2.5 pr-3 text-xs font-medium text-gray-700">{m.mes}</td>
+                  <td className="py-2.5 pr-3 text-right text-xs text-green-700 tabular-nums font-medium">{BRL(m.receita)}</td>
+                  <td className="py-2.5 pr-3 text-right text-xs text-red-500 tabular-nums">–{BRL(m.custo)}</td>
+                  <td className={`py-2.5 pr-3 text-right text-xs font-semibold tabular-nums ${m.saldo >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                    {m.saldo >= 0 ? '+' : ''}{BRL(m.saldo)}
+                  </td>
+                  <td className={`py-2.5 pr-3 text-right text-xs font-bold tabular-nums ${m.acum >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                    {m.acum >= 0 ? '+' : ''}{BRL(m.acum)}
+                  </td>
+                  <td className="py-2.5">
+                    <span className={`text-[9.5px] font-medium px-2 py-0.5 rounded-full ${m.saldo >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                      {m.saldo >= 0 ? 'Superávit' : 'Déficit'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {resultado !== 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-gray-100 bg-gray-50">
+                  <td className="py-2 text-xs font-semibold text-gray-600">Total 6 meses</td>
+                  <td className="py-2 text-right text-xs font-semibold text-green-700 tabular-nums">{BRL(monthlyNet * 6)}</td>
+                  <td className="py-2 text-right text-xs font-semibold text-red-600 tabular-nums">–{BRL(totalCustoMensal * 6)}</td>
+                  <td colSpan={1}/>
+                  <td className={`py-2 text-right text-xs font-bold tabular-nums ${resultado * 6 >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {resultado * 6 >= 0 ? '+' : ''}{BRL(resultado * 6)}
+                  </td>
+                  <td/>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+        {pipeline.length > 0 && (
+          <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
+            <strong>Com pipeline convertido:</strong> resultado seria {BRL(resultadoComPL)}/mês ({BRL(resultadoComPL * 6)} em 6 meses).
+            Diferença: {BRL((resultadoComPL - resultado) * 6)} em 6 meses.
+          </div>
+        )}
+      </Card>
+
+      {/* Pipeline detail */}
+      {pipeline.length > 0 && (
+        <Card title="Possíveis entradas — pipeline"
+          subtitle={`${pipeline.length} oportunidade${pipeline.length !== 1 ? 's' : ''} · ${BRL(pipelineNet)}/mês potencial · resultado projetado: ${BRL(resultadoComPL)}/mês`}
+          action={<Link href="/clientes?status=PIPELINE" className="text-xs font-medium text-blue-600 hover:text-blue-700">Ver todos →</Link>}>
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ minWidth: 480 }}>
+              <thead><tr>{['Cliente','Serviço','Tipo','Rec. bruta','Rec. líquida','Risco'].map(h=>(<th key={h} className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">{h}</th>))}</tr></thead>
+              <tbody>
+                {[...pipeline].sort((a, b) => b.netRevenue - a.netRevenue).map(c => (
+                  <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                    <td className="py-2.5 pr-3 text-xs font-medium text-gray-800">{c.name}</td>
+                    <td className="py-2.5 pr-3 text-[10.5px] text-gray-500">{SERVICE_TYPE_LABELS[c.serviceType]}</td>
+                    <td className="py-2.5 pr-3 text-center"><span className={`text-[9.5px] font-medium px-1.5 py-0.5 rounded-full ${c.isRecurring ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{c.isRecurring ? 'Recorrente' : 'Pontual'}</span></td>
+                    <td className="py-2.5 pr-3 text-right text-xs text-gray-600 tabular-nums">{BRL(c.grossRevenue)}</td>
+                    <td className="py-2.5 pr-3 text-right"><span className="text-xs font-semibold text-blue-700 tabular-nums">{BRL(c.netRevenue)}</span></td>
+                    <td className="py-2.5 text-center"><Pill label={RISK_LABELS[c.riskLevel]} variant={riskColor[c.riskLevel]} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}
@@ -340,12 +481,12 @@ export default async function DashboardPage({ searchParams }: Props) {
       {/* Quick links */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { href: '/clientes',      label: 'Novo cliente',     icon: '👤', color: 'bg-blue-50 text-blue-700',    qs: '?new=1' },
-          { href: '/colaboradores', label: 'Novo colaborador', icon: '👥', color: 'bg-green-50 text-green-700',  qs: '' },
-          { href: '/metas',         label: 'Ver metas',        icon: '🎯', color: 'bg-purple-50 text-purple-700', qs: '' },
-          { href: '/simulador',     label: 'Simular cenário',  icon: '🔮', color: 'bg-orange-50 text-orange-700', qs: '' },
+          { href:'/clientes',      label:'Novo cliente',     icon:'👤', color:'bg-blue-50 text-blue-700',    qs:'?new=1' },
+          { href:'/colaboradores', label:'Novo colaborador', icon:'👥', color:'bg-green-50 text-green-700',  qs:'' },
+          { href:'/metas',         label:'Ver metas',        icon:'🎯', color:'bg-purple-50 text-purple-700', qs:'' },
+          { href:'/simulador',     label:'Simular cenário',  icon:'🔮', color:'bg-orange-50 text-orange-700', qs:'' },
         ].map(item => (
-          <Link key={item.href + item.qs} href={item.href + item.qs}
+          <Link key={item.href+item.qs} href={item.href+item.qs}
             className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm transition-all">
             <span className={`w-9 h-9 rounded-lg ${item.color} flex items-center justify-center text-base`}>{item.icon}</span>
             <span className="text-sm font-medium text-gray-700">{item.label}</span>
