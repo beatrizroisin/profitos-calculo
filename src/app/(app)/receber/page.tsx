@@ -54,14 +54,29 @@ export default function ReceberPage() {
 
   async function fetchAll() {
     setLoading(true);
-    const [mRes, tRes, catRes] = await Promise.all([
+    // Also fetch this month's paid income transactions to restore paid state
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const [mRes, tRes, catRes, paidRes] = await Promise.all([
       fetch('/api/clients/monthly-revenue'),
       fetch('/api/transactions?type=INCOME'),
       fetch('/api/categories?type=INCOME'),
+      fetch(`/api/transactions?type=INCOME&status=PAID&from=${from}&to=${to}`),
     ]);
     if (mRes.ok)   setMonthly(await mRes.json());
     if (tRes.ok)   { const d = await tRes.json(); setTxs(d.transactions || []); }
     if (catRes.ok) setCats(await catRes.json());
+    // Restore paid client state from DB
+    if (paidRes.ok) {
+      const paidData = await paidRes.json();
+      const paidIds = new Set<string>(
+        (paidData.transactions || [])
+          .filter((t: any) => t.client?.id)
+          .map((t: any) => t.client.id as string)
+      );
+      setPaidClients(paidIds);
+    }
     setLoading(false);
   }
 
@@ -125,12 +140,62 @@ export default function ReceberPage() {
     setSaved('Excluído.'); setTimeout(() => setSaved(''), 2500); fetchAll();
   }
 
-  function toggleClientPaid(clientId: string) {
-    setPaidClients(prev => {
-      const next = new Set(prev);
-      next.has(clientId) ? next.delete(clientId) : next.add(clientId);
-      return next;
-    });
+  async function toggleClientPaid(clientId: string, entry: ClientEntry) {
+    const isPaid = paidClients.has(clientId);
+
+    if (!isPaid) {
+      // Mark as received: create a PAID INCOME transaction linked to this client
+      const now = new Date();
+      const dueDay = Math.min(entry.dueDay, 28);
+      const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+      const payload = {
+        type:        'INCOME',
+        description: `Mensalidade — ${entry.clientName}`,
+        amount:      entry.netRevenue,
+        grossAmount: entry.grossRevenue,
+        taxRate:     entry.taxRate,
+        dueDate:     dueDate.toISOString().slice(0, 10),
+        paidAt:      new Date().toISOString(),
+        status:      'PAID',
+        isRecurring: entry.isRecurring,
+        clientId:    clientId,
+      };
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setPaidClients(prev => new Set([...prev, clientId]));
+        setSaved('Recebimento registrado.');
+        setTimeout(() => setSaved(''), 3000);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error || 'Erro ao registrar recebimento.');
+      }
+    } else {
+      // Unmark: find and delete the paid transaction for this client this month
+      const now = new Date();
+      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const res = await fetch(`/api/transactions?type=INCOME&status=PAID&from=${from}&to=${to}`);
+      if (res.ok) {
+        const data = await res.json();
+        const tx = (data.transactions || []).find(
+          (t: any) => t.client?.id === clientId
+        );
+        if (tx) {
+          await fetch(`/api/transactions/${tx.id}`, { method: 'DELETE' });
+        }
+      }
+      setPaidClients(prev => {
+        const next = new Set(prev);
+        next.delete(clientId);
+        return next;
+      });
+      setSaved('Recebimento desmarcado.');
+      setTimeout(() => setSaved(''), 3000);
+    }
   }
 
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -290,7 +355,7 @@ export default function ReceberPage() {
                         </td>
                         <td className="py-3 pr-5 text-right">
                           <button
-                            onClick={() => toggleClientPaid(e.clientId)}
+                            onClick={() => toggleClientPaid(e.clientId, e)}
                             className={`px-3 py-1 rounded-lg text-[10.5px] font-medium transition-colors border ${
                               isPaid
                                 ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'

@@ -4,7 +4,7 @@ import { Alert } from '@/components/ui';
 import { BRL } from '@/lib/utils';
 
 interface Client { netRevenue: number; grossRevenue: number; status: string; riskLevel: string; name: string; }
-interface Stats { monthlyExpense: number; totalRevenue: number; clientCount: number; ticketMedio: number; hasExpenseData: boolean; resultado: number; folhaTotal: number; }
+interface Stats { monthlyExpense: number; totalRevenue: number; clientCount: number; ticketMedio: number; hasExpenseData: boolean; resultado: number; folhaTotal: number; totalCustoMensal: number; despesasLancadas: number; }
 
 export default function CeoPage({ searchParams }: { searchParams: { period?: string } }) {
   const [clients, setClients] = useState<Client[]>([]);
@@ -28,10 +28,15 @@ export default function CeoPage({ searchParams }: { searchParams: { period?: str
   const ativos = clients.filter(c => c.status === 'ACTIVE');
   const totalLiq = ativos.reduce((s, c) => s + c.netRevenue, 0);
   
-  // CORREÇÃO: Verificação de nulidade para stats
-  const expenses = stats 
-    ? (stats.monthlyExpense > 0 ? stats.monthlyExpense : stats.folhaTotal > 0 ? stats.folhaTotal : 0)
+  // CORREÇÃO: usa totalCustoMensal (folha + despesas lançadas) como custo real
+  const expenses = stats
+    ? (stats.totalCustoMensal > 0
+        ? stats.totalCustoMensal
+        : stats.monthlyExpense > 0
+          ? stats.monthlyExpense
+          : stats.folhaTotal > 0 ? stats.folhaTotal : 0)
     : 0;
+  const despesasLancadas = stats?.despesasLancadas ?? 0;
 
   const resultado = totalLiq - expenses;
   const deficit = Math.abs(resultado);
