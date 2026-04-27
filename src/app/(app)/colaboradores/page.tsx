@@ -38,15 +38,33 @@ interface Collaborator {
 }
 
 const EMPTY_FORM = {
-  // Identification
-  name: '', position: '', type: 'PJ', document: '', email: '', phone: '',
-  // Contract
-  salary: '', hoursPerMonth: '160', startDate: '', endDate: '',
-  // Payment
-  paymentMethod: 'PIX', paymentDay: '5',
-  pixKey: '', bankName: '', bankAgency: '', bankAccount: '', bankAccountType: 'CORRENTE',
-  // Personal
-  birthDate: '', address: '', emergencyContact: '', emergencyPhone: '',
+  name: '', 
+  position: '', 
+  type: 'PJ', 
+  document: '', 
+  rg: '', // Adicionado
+  email: '', 
+  phone: '',
+  razaoSocial: '', // Adicionado
+  cnpj: '', // Adicionado
+  estadoCivil: '', // Adicionado
+  instagram: '', // Adicionado
+  nivelExperiencia: '', // Adicionado
+  salary: '', 
+  hoursPerMonth: '160', 
+  startDate: '', 
+  endDate: '',
+  paymentMethod: 'PIX', 
+  paymentDay: '5',
+  pixKey: '', 
+  bankName: '', 
+  bankAgency: '', 
+  bankAccount: '', 
+  bankAccountType: 'CORRENTE',
+  birthDate: '', 
+  address: '', 
+  emergencyContact: '', 
+  emergencyPhone: '',
   notes: '',
 };
 
@@ -105,38 +123,44 @@ export default function ColaboradoresPage() {
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
-  function openEdit(c: Collaborator) {
-    setEditId(c.id); setViewId(null);
-    setForm({
-      name: c.name, position: c.position, type: c.type,
-      document: (c as any).document || '',
-      rg: (c as any).rg || '',
-      email: c.email || '', phone: c.phone || '',
-      razaoSocial: (c as any).razaoSocial || '',
-      cnpj: (c as any).cnpj || '',
-      birthDate: (c as any).birthDate?.slice(0,10) || '',
-      estadoCivil: (c as any).estadoCivil || '',
-      instagram: (c as any).instagram || '',
-      nivelExperiencia: (c as any).nivelExperiencia || '',
-      salary: String(c.salary), hoursPerMonth: String(c.hoursPerMonth),
-      startDate: (c as any).startDate?.slice(0,10) || '',
-      endDate: (c as any).endDate?.slice(0,10) || '',
-      paymentMethod: (c as any).paymentMethod || 'PIX',
-      paymentDay: String((c as any).paymentDay || 5),
-      pixKey: (c as any).pixKey || '',
-      bankName: (c as any).bankName || '',
-      bankAgency: (c as any).bankAgency || '',
-      bankAccount: (c as any).bankAccount || '',
-      bankAccountType: (c as any).bankAccountType || 'CORRENTE',
-      address: (c as any).address || '',
-      emergencyContact: (c as any).emergencyContact || '',
-      emergencyPhone: (c as any).emergencyPhone || '',
-      notes: c.notes || '',
-    });
-    setError('');
-    setShowForm(true);
-    window.scrollTo({top:0,behavior:'smooth'});
-  }
+function openEdit(c: Collaborator) {
+  setEditId(c.id); setViewId(null);
+  const data = c as any; // Facilita o acesso a campos estendidos do banco
+  
+  setForm({
+    name: c.name, 
+    position: c.position, 
+    type: c.type,
+    document: data.document || '',
+    rg: data.rg || '', // Agora o TS não vai reclamar do destino (form)
+    email: c.email || '', 
+    phone: c.phone || '',
+    razaoSocial: data.razaoSocial || '',
+    cnpj: data.cnpj || '',
+    birthDate: data.birthDate?.slice(0,10) || '',
+    estadoCivil: data.estadoCivil || '',
+    instagram: data.instagram || '',
+    nivelExperiencia: data.nivelExperiencia || '',
+    salary: String(c.salary), 
+    hoursPerMonth: String(c.hoursPerMonth),
+    startDate: data.startDate?.slice(0,10) || '',
+    endDate: data.endDate?.slice(0,10) || '',
+    paymentMethod: data.paymentMethod || 'PIX',
+    paymentDay: String(data.paymentDay || 5),
+    pixKey: data.pixKey || '',
+    bankName: data.bankName || '',
+    bankAgency: data.bankAgency || '',
+    bankAccount: data.bankAccount || '',
+    bankAccountType: data.bankAccountType || 'CORRENTE',
+    address: data.address || '',
+    emergencyContact: data.emergencyContact || '',
+    emergencyPhone: data.emergencyPhone || '',
+    notes: c.notes || '',
+  });
+  setError('');
+  setShowForm(true);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setError('');
@@ -144,7 +168,7 @@ export default function ColaboradoresPage() {
       name: form.name, position: form.position, type: form.type,
       salary: parseFloat(form.salary)||0, hoursPerMonth: parseInt(form.hoursPerMonth)||160,
       document: form.document||null,
-      rg: (form as any).rg||null,
+     rg: form.rg || null,
       email: form.email||null, phone: form.phone||null,
       razaoSocial: (form as any).razaoSocial||null,
       cnpj: (form as any).cnpj||null,
