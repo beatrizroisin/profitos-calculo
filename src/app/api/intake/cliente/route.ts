@@ -1,6 +1,4 @@
-// src/app/api/intake/cliente/route.ts — v3.9
-// POST público — sem autenticação. Identificado por ?empresa=SLUG.
-// Cliente preenche minuta contratual. Salvo com status=PROSPECT para revisão.
+// src/app/api/intake/cliente/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
@@ -27,11 +25,22 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const data = schema.parse(await req.json());
-    const company = await prisma.company.findUnique({ where: { slug: data.companySlug } });
-    if (!company) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
+    const body = await req.json();
+    const data = schema.parse(body);
 
-    const dueDay = parseInt(data.diaVencimento ?? '5') || 5;
+    const company = await prisma.company.findUnique({ 
+      where: { slug: data.companySlug } 
+    });
+
+    if (!company) {
+      return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
+    }
+
+    // Conversões seguras
+    const dueDay = parseInt(data.diaVencimento || '5', 10) || 5;
+    const installments = parseInt(data.quantidadePagamentos || '12', 10) || 12;
+    const vMensal = data.valorMensal ?? 0;
+
     const notes = [
       data.endereco              && `Endereço: ${data.endereco}`,
       data.representanteLegal    && `Rep. Legal: ${data.representanteLegal}`,
@@ -51,27 +60,36 @@ export async function POST(req: NextRequest) {
       data: {
         companyId:          company.id,
         name:               data.razaoSocial,
-        document:           data.cnpj                ?? null,
-        email:              data.emailRepresentante  ?? null,
-        serviceType:        'OUTROS'                 as any,
-        grossRevenue:       data.valorMensal         ?? 0,
+        document:           data.cnpj                || null,
+        email:              data.emailRepresentante  || null,
+        serviceType:        'OUTROS', // Verifique se 'OUTROS' existe no seu Enum do Prisma
+        grossRevenue:       vMensal,
         taxRate:            6,
-        netRevenue:         (data.valorMensal        ?? 0) * 0.94,
+        netRevenue:         vMensal * 0.94,
         isRecurring:        true,
-        totalInstallments:  parseInt(data.quantidadePagamentos ?? '12') || 12,
+        totalInstallments:  installments,
         currentInstallment: 1,
         startDate:          new Date(),
-        dueDay,
+        dueDay:             dueDay,
         status:             'PROSPECT',
         riskLevel:          'LOW',
-        notes,
+        notes:              notes,
       },
     });
+
     return NextResponse.json({ success: true, id: client.id }, { status: 201 });
+
   } catch (err: any) {
-    if (err?.name === 'ZodError')
+    if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Dados inválidos.', details: err.errors }, { status: 400 });
-    console.error('[intake/cliente]', err?.message);
-    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });
+    }
+    
+    // O console.log aqui é vital para ler o erro real no terminal da Vercel ou VS Code
+    console.error('[API_INTAKE_CLIENTE_ERROR]:', err);
+
+    return NextResponse.json({ 
+      error: 'Erro interno ao processar cadastro.',
+      message: err?.message 
+    }, { status: 500 });
   }
 }
