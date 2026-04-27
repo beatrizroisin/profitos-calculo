@@ -1,19 +1,20 @@
 'use client';
-// /formulario/colaborador?empresa=SLUG — formulário público de ficha cadastral
-// Baseado nos campos do FORM_COLABORADORES.xlsx da ALMAH
-import { useState } from 'react';
+
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 const I = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors';
 const L = 'block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1';
 
 function Sec({ t }: { t: string }) {
-  return <div className="col-span-2 pt-2 mt-2 mb-0">
-    <p className="text-[10px] font-bold text-[#1A6B4A] uppercase tracking-widest pb-1 border-b border-green-100">{t}</p>
-  </div>;
+  return (
+    <div className="col-span-2 pt-2 mt-2 mb-0">
+      <p className="text-[10px] font-bold text-[#1A6B4A] uppercase tracking-widest pb-1 border-b border-green-100">{t}</p>
+    </div>
+  );
 }
 
-export default function FormColaborador() {
+function FormContent() {
   const searchParams = useSearchParams();
   const slug = searchParams.get('empresa') || '';
   
@@ -24,8 +25,8 @@ export default function FormColaborador() {
     pixKey:'', bankData:'', address:'', notes:'',
   });
   const [saving, setSaving] = useState(false);
-  const [done,   setDone]   = useState(false);
-  const [error,  setError]  = useState('');
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>) =>
     setF(p => ({ ...p, [k]: e.target.value }));
@@ -150,5 +151,13 @@ export default function FormColaborador() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function FormColaborador() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-400">Carregando...</div>}>
+      <FormContent />
+    </Suspense>
   );
 }
