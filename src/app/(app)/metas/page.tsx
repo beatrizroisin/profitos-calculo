@@ -14,7 +14,7 @@ export default function MetasPage({ searchParams }: { searchParams: { period?: s
   const [ticket,  setTicket]  = useState(0);
 
   const period = searchParams?.period || '30d';
-  const months = ({ '90d':3,'6m':6,'1y':12,'2y':24 } as Record<string, number>)[period] || 3;
+  const months = ({ '30d': 1, '60d': 2, '90d': 3, '6m': 6, '1y': 12, '2y': 24 } as Record<string, number>)[period] || 1;
   const periodLabel = ({ '30d':'30 dias','60d':'60 dias','90d':'90 dias','6m':'6 meses','1y':'1 ano','2y':'2 anos' } as Record<string, string>)[period] || '30 dias';
 
   useEffect(() => {
