@@ -1,4 +1,6 @@
-// src/app/api/intake/cliente/route.ts
+// src/app/api/intake/cliente/route.ts — v3.9
+// POST público — sem autenticação. Identificado por ?empresa=SLUG.
+// Cliente preenche minuta contratual. Salvo com status=PROSPECT para revisão.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
@@ -25,21 +27,11 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const data = schema.parse(body);
+    const data = schema.parse(await req.json());
+    const company = await prisma.company.findUnique({ where: { slug: data.companySlug } });
+    if (!company) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
 
-    const company = await prisma.company.findUnique({ 
-      where: { slug: data.companySlug } 
-    });
-
-    if (!company) {
-      return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
-    }
-
-    const dueDay = parseInt(data.diaVencimento || '5', 10) || 5;
-    const installments = parseInt(data.quantidadePagamentos || '12', 10) || 12;
-    const vMensal = data.valorMensal ?? 0;
-
+    const dueDay = parseInt(data.diaVencimento ?? '5') || 5;
     const notes = [
       data.endereco              && `Endereço: ${data.endereco}`,
       data.representanteLegal    && `Rep. Legal: ${data.representanteLegal}`,
@@ -59,33 +51,27 @@ export async function POST(req: NextRequest) {
       data: {
         companyId:          company.id,
         name:               data.razaoSocial,
-        document:           data.cnpj                || null,
-        email:              data.emailRepresentante  || null,
-        // CORREÇÃO: No seu schema o enum é OTHER, não OUTROS
-        serviceType:        'OTHER', 
-        grossRevenue:       vMensal,
+        document:           data.cnpj                ?? null,
+        email:              data.emailRepresentante  ?? null,
+        serviceType:        'OUTROS'                 as any,
+        grossRevenue:       data.valorMensal         ?? 0,
         taxRate:            6,
-        netRevenue:         vMensal * 0.94,
+        netRevenue:         (data.valorMensal        ?? 0) * 0.94,
         isRecurring:        true,
-        totalInstallments:  installments,
+        totalInstallments:  parseInt(data.quantidadePagamentos ?? '12') || 12,
         currentInstallment: 1,
         startDate:          new Date(),
-        dueDay:             dueDay,
-        // No seu schema status é String, então 'PROSPECT' funciona
+        dueDay,
         status:             'PROSPECT',
-        // No seu schema riskLevel é um enum que aceita LOW
         riskLevel:          'LOW',
-        notes:              notes,
+        notes,
       },
     });
-
     return NextResponse.json({ success: true, id: client.id }, { status: 201 });
-
   } catch (err: any) {
-    console.error('[API_INTAKE_CLIENTE_ERROR]:', err);
-    return NextResponse.json({ 
-      error: 'Erro interno ao processar cadastro.',
-      message: err?.message 
-    }, { status: 500 });
+    if (err?.name === 'ZodError')
+      return NextResponse.json({ error: 'Dados inválidos.', details: err.errors }, { status: 400 });
+    console.error('[intake/cliente]', err?.message);
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });
   }
 }
