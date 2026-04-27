@@ -120,6 +120,7 @@ model UserInvite {
 
 model Client {
   id                      String                   @id @default(cuid())
+  orderId                 Int                      @default(autoincrement())
   companyId               String
   name                    String
   document                String?

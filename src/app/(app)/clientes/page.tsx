@@ -21,10 +21,10 @@ const EMPTY: Omit<Client, 'id'> = {
 };
 
 const STATUS_PILL: Record<string, any> = { ACTIVE: 'green', INACTIVE: 'gray', PROSPECT: 'amber', PIPELINE: 'blue', CHURNED: 'red' };
-const RISK_PILL:   Record<string, any> = { LOW: 'green', MEDIUM: 'amber', HIGH: 'red', CRITICAL: 'red' };
+const RISK_PILL:    Record<string, any> = { LOW: 'green', MEDIUM: 'amber', HIGH: 'red', CRITICAL: 'red' };
 
 export default function ClientesPage() {
-  const searchParams                    = useSearchParams();
+  const searchParams                     = useSearchParams();
   const [clients, setClients]       = useState<Client[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
@@ -48,7 +48,11 @@ export default function ClientesPage() {
     if (statusFilter) params.set('status', statusFilter);
     if (search)       params.set('search', search);
     const res = await fetch(`/api/clients?${params}`);
-    if (res.ok) setClients(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      // Ordenação para garantir que os números sigam a ordem de cadastro
+      setClients(data.sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()));
+    }
     setLoading(false);
   }
 
@@ -160,7 +164,9 @@ export default function ClientesPage() {
             {/* Row 1 — identification */}
             <div className="grid grid-cols-3 gap-3 mb-3">
               <div className="col-span-2">
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nome do cliente *</label>
+                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+                  Nome do cliente * {editId && <span className="text-[#1A6B4A] font-bold">#{(clients.findIndex(x => x.id === editId) + 1).toString().padStart(2, '0')}</span>}
+                </label>
                 <input required className={inputCls} placeholder="Razão social ou nome fantasia" value={form.name} onChange={e => F('name', e.target.value)} />
               </div>
               <div>
@@ -340,13 +346,19 @@ export default function ClientesPage() {
                   <tr><td colSpan={9} className="text-center py-12 text-sm text-gray-400">
                     Nenhum cliente encontrado. <button onClick={openNew} className="text-[#1A6B4A] underline">Adicionar →</button>
                   </td></tr>
-                ) : clients.map(c => {
+                ) : clients.map((c, index) => {
                   const imp = c.grossRevenue - c.netRevenue;
+                  const contractNum = (index + 1).toString().padStart(2, '0');
                   return (
                     <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/40 transition-colors">
                       <td className="px-5 py-3">
-                        <p className="font-medium text-gray-800 truncate max-w-[180px]">{c.name}</p>
-                        {c.email && <p className="text-[10px] text-gray-400 mt-0.5">{c.email}</p>}
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[#1A6B4A] font-bold bg-green-50 px-1.5 py-0.5 rounded text-[10px]">#{contractNum}</span>
+                          <div>
+                            <p className="font-medium text-gray-800 truncate max-w-[180px]">{c.name}</p>
+                            {c.email && <p className="text-[10px] text-gray-400 mt-0.5">{c.email}</p>}
+                          </div>
+                        </div>
                       </td>
                       <td className="py-3 text-gray-500 max-w-[130px]"><span className="truncate block">{SERVICE_TYPE_LABELS[c.serviceType]}</span></td>
                       <td className="py-3 text-right text-gray-500 tabular">{BRL(c.grossRevenue)}</td>
