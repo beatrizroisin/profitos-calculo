@@ -344,21 +344,44 @@ enum PricingStatus {
 // ─── ALOCAÇÃO DE COLABORADORES ───────────────────────────────────────────────
 
 model Collaborator {
-  id            String                   @id @default(cuid())
-  companyId     String
-  name          String
-  position      String
-  type          CollaboratorType         @default(PJ)
-  salary        Float
-  hoursPerMonth Int                      @default(160)
-  avatarUrl     String?
-  isActive      Boolean                  @default(true)
-  notes         String?
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
-  runRunLink    RunRunUserLink?
-  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  allocations   CollaboratorAllocation[]
+  id               String                   @id @default(cuid())
+  companyId        String
+  name             String
+  position         String
+  type             CollaboratorType         @default(PJ)
+  salary           Float
+  hoursPerMonth    Int                      @default(160)
+  avatarUrl        String?
+  isActive         Boolean                  @default(true)
+  notes            String?
+  // Extended HR fields — v3.9
+  document         String?    // CPF
+  rg               String?
+  email            String?
+  phone            String?
+  birthDate        DateTime?
+  startDate        DateTime?
+  endDate          DateTime?
+  razaoSocial      String?
+  cnpj             String?
+  pixKey           String?
+  paymentMethod    String?
+  paymentDay       Int?
+  bankName         String?
+  bankAgency       String?
+  bankAccount      String?
+  bankAccountType  String?
+  address          String?
+  emergencyContact String?
+  emergencyPhone   String?
+  instagram        String?
+  nivelExperiencia String?
+  estadoCivil      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  runRunLink       RunRunUserLink?
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  allocations      CollaboratorAllocation[]
 
   @@index([companyId])
   @@map("collaborators")

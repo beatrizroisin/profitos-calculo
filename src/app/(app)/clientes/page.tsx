@@ -113,7 +113,14 @@ export default function ClientesPage() {
           <h1 className="text-lg font-semibold text-gray-900">Clientes</h1>
           <p className="text-sm text-gray-400 mt-0.5">{clients.length} cadastrados · {ativos.length} ativos</p>
         </div>
-        {!showForm && <Button variant="primary" onClick={openNew}>+ Novo cliente</Button>}
+        {!showForm && (
+          <div className="flex items-center gap-2">
+            <a href="/api/export?type=clients" download>
+              <Button variant="secondary">⬇ Exportar CSV</Button>
+            </a>
+            <Button variant="primary" onClick={openNew}>+ Novo cliente</Button>
+          </div>
+        )}
       </div>
 
       {saved && <Alert variant="ok">Cliente {editId ? 'atualizado' : 'adicionado'} com sucesso e integrado em toda a ferramenta.</Alert>}
