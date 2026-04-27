@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
         name:               data.razaoSocial,
         document:           data.cnpj                || null,
         email:              data.emailRepresentante  || null,
-        serviceType:        'OUTROS', // Verifique se 'OUTROS' existe no seu Enum do Prisma
+        serviceType: 'OUTROS' as any,// Verifique se 'OUTROS' existe no seu Enum do Prisma
         grossRevenue:       vMensal,
         taxRate:            6,
         netRevenue:         vMensal * 0.94,
