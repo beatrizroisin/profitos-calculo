@@ -36,7 +36,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
     }
 
-    // Conversões seguras
     const dueDay = parseInt(data.diaVencimento || '5', 10) || 5;
     const installments = parseInt(data.quantidadePagamentos || '12', 10) || 12;
     const vMensal = data.valorMensal ?? 0;
@@ -62,7 +61,8 @@ export async function POST(req: NextRequest) {
         name:               data.razaoSocial,
         document:           data.cnpj                || null,
         email:              data.emailRepresentante  || null,
-        serviceType: 'OUTROS' as any,// Verifique se 'OUTROS' existe no seu Enum do Prisma
+        // CORREÇÃO: No seu schema o enum é OTHER, não OUTROS
+        serviceType:        'OTHER', 
         grossRevenue:       vMensal,
         taxRate:            6,
         netRevenue:         vMensal * 0.94,
@@ -71,7 +71,9 @@ export async function POST(req: NextRequest) {
         currentInstallment: 1,
         startDate:          new Date(),
         dueDay:             dueDay,
+        // No seu schema status é String, então 'PROSPECT' funciona
         status:             'PROSPECT',
+        // No seu schema riskLevel é um enum que aceita LOW
         riskLevel:          'LOW',
         notes:              notes,
       },
@@ -80,13 +82,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, id: client.id }, { status: 201 });
 
   } catch (err: any) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Dados inválidos.', details: err.errors }, { status: 400 });
-    }
-    
-    // O console.log aqui é vital para ler o erro real no terminal da Vercel ou VS Code
     console.error('[API_INTAKE_CLIENTE_ERROR]:', err);
-
     return NextResponse.json({ 
       error: 'Erro interno ao processar cadastro.',
       message: err?.message 
