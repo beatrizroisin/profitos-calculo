@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         name:               data.razaoSocial,
         document:           data.cnpj                ?? null,
         email:              data.emailRepresentante  ?? null,
-        serviceType:        'OUTROS'                 as any,
+        serviceType:        'OTHER'                 as any,
         grossRevenue:       data.valorMensal         ?? 0,
         taxRate:            6,
         netRevenue:         (data.valorMensal        ?? 0) * 0.94,
