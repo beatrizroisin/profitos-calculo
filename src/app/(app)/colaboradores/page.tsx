@@ -110,7 +110,14 @@ export default function ColaboradoresPage() {
     setForm({
       name: c.name, position: c.position, type: c.type,
       document: (c as any).document || '',
+      rg: (c as any).rg || '',
       email: c.email || '', phone: c.phone || '',
+      razaoSocial: (c as any).razaoSocial || '',
+      cnpj: (c as any).cnpj || '',
+      birthDate: (c as any).birthDate?.slice(0,10) || '',
+      estadoCivil: (c as any).estadoCivil || '',
+      instagram: (c as any).instagram || '',
+      nivelExperiencia: (c as any).nivelExperiencia || '',
       salary: String(c.salary), hoursPerMonth: String(c.hoursPerMonth),
       startDate: (c as any).startDate?.slice(0,10) || '',
       endDate: (c as any).endDate?.slice(0,10) || '',
@@ -121,7 +128,6 @@ export default function ColaboradoresPage() {
       bankAgency: (c as any).bankAgency || '',
       bankAccount: (c as any).bankAccount || '',
       bankAccountType: (c as any).bankAccountType || 'CORRENTE',
-      birthDate: (c as any).birthDate?.slice(0,10) || '',
       address: (c as any).address || '',
       emergencyContact: (c as any).emergencyContact || '',
       emergencyPhone: (c as any).emergencyPhone || '',
@@ -137,13 +143,21 @@ export default function ColaboradoresPage() {
     const payload = {
       name: form.name, position: form.position, type: form.type,
       salary: parseFloat(form.salary)||0, hoursPerMonth: parseInt(form.hoursPerMonth)||160,
-      document: form.document||null, email: form.email||null, phone: form.phone||null,
+      document: form.document||null,
+      rg: (form as any).rg||null,
+      email: form.email||null, phone: form.phone||null,
+      razaoSocial: (form as any).razaoSocial||null,
+      cnpj: (form as any).cnpj||null,
+      birthDate: form.birthDate||null,
+      estadoCivil: (form as any).estadoCivil||null,
+      instagram: (form as any).instagram||null,
+      nivelExperiencia: (form as any).nivelExperiencia||null,
       startDate: form.startDate||null, endDate: form.endDate||null,
       paymentMethod: form.paymentMethod||null, paymentDay: parseInt(form.paymentDay)||5,
       pixKey: form.pixKey||null, bankName: form.bankName||null,
       bankAgency: form.bankAgency||null, bankAccount: form.bankAccount||null,
       bankAccountType: form.bankAccountType||null,
-      birthDate: form.birthDate||null, address: form.address||null,
+      address: form.address||null,
       emergencyContact: form.emergencyContact||null, emergencyPhone: form.emergencyPhone||null,
       notes: form.notes||null,
     };
@@ -410,6 +424,11 @@ export default function ColaboradoresPage() {
                   onChange={e=>F('document',e.target.value)} placeholder="000.000.000-00"/>
               </div>
               <div>
+                <label className={lbl}>RG</label>
+                <input className={inp} value={(form as any).rg || ''}
+                  onChange={e=>F('rg',e.target.value)} placeholder="00.000.000-0"/>
+              </div>
+              <div>
                 <label className={lbl}>E-mail</label>
                 <input type="email" className={inp} value={form.email}
                   onChange={e=>F('email',e.target.value)} placeholder="nome@empresa.com"/>
@@ -418,6 +437,16 @@ export default function ColaboradoresPage() {
                 <label className={lbl}>Telefone / WhatsApp</label>
                 <input className={inp} value={form.phone}
                   onChange={e=>F('phone',e.target.value)} placeholder="(11) 99999-9999"/>
+              </div>
+              <div>
+                <label className={lbl}>Razão Social (PJ)</label>
+                <input className={inp} value={(form as any).razaoSocial || ''}
+                  onChange={e=>F('razaoSocial',e.target.value)} placeholder="Nome da empresa PJ"/>
+              </div>
+              <div>
+                <label className={lbl}>CNPJ (PJ)</label>
+                <input className={inp} value={(form as any).cnpj || ''}
+                  onChange={e=>F('cnpj',e.target.value)} placeholder="00.000.000/0001-00"/>
               </div>
 
               {/* ── CONTRATO ── */}
@@ -521,6 +550,35 @@ export default function ColaboradoresPage() {
                 <label className={lbl}>Data de nascimento</label>
                 <input type="date" className={inp} value={form.birthDate}
                   onChange={e=>F('birthDate',e.target.value)}/>
+              </div>
+              <div>
+                <label className={lbl}>Estado civil</label>
+                <select className={inp} value={(form as any).estadoCivil || ''}
+                  onChange={e=>F('estadoCivil',e.target.value)}>
+                  <option value="">Selecione...</option>
+                  <option>Solteiro(a)</option>
+                  <option>Casado(a)</option>
+                  <option>Divorciado(a)</option>
+                  <option>Viúvo(a)</option>
+                  <option>União estável</option>
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Instagram</label>
+                <input className={inp} value={(form as any).instagram || ''}
+                  onChange={e=>F('instagram',e.target.value)} placeholder="@seuinstagram"/>
+              </div>
+              <div>
+                <label className={lbl}>Nível de experiência</label>
+                <select className={inp} value={(form as any).nivelExperiencia || ''}
+                  onChange={e=>F('nivelExperiencia',e.target.value)}>
+                  <option value="">Selecione...</option>
+                  <option>Júnior</option>
+                  <option>Pleno</option>
+                  <option>Sênior</option>
+                  <option>Especialista</option>
+                  <option>Gestor</option>
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <label className={lbl}>Endereço completo</label>

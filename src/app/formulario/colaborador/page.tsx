@@ -2,6 +2,7 @@
 // /formulario/colaborador?empresa=SLUG — formulário público de ficha cadastral
 // Baseado nos campos do FORM_COLABORADORES.xlsx da ALMAH
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 const I = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors';
 const L = 'block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1';
@@ -12,8 +13,10 @@ function Sec({ t }: { t: string }) {
   </div>;
 }
 
-export default function FormColaborador({ searchParams }: { searchParams: { empresa?: string } }) {
-  const slug = searchParams.empresa || '';
+export default function FormColaborador() {
+  const searchParams = useSearchParams();
+  const slug = searchParams.get('empresa') || '';
+  
   const [f, setF] = useState({
     name:'', razaoSocial:'', cnpj:'', document:'', rg:'',
     email:'', phone:'', birthDate:'', estadoCivil:'', instagram:'', nivelExperiencia:'',

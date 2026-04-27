@@ -100,7 +100,10 @@ export default function ConfiguracoesPage() {
   function resetServices()  { setServices(DEFAULT_SERVICES); }
   function resetPositions() { setPositions(DEFAULT_POSITIONS); }
 
-  const slug = user?.companySlug || user?.companyId?.slice(0, 8) || '...';
+  const slug     = user?.companySlug || '';
+  const origin   = typeof window !== 'undefined' ? window.location.origin : 'https://profitos-calculo.vercel.app';
+  const linkColab  = slug ? `${origin}/formulario/colaborador?empresa=${slug}` : '';
+  const linkClient = slug ? `${origin}/formulario/cliente?empresa=${slug}` : '';
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -168,44 +171,60 @@ export default function ConfiguracoesPage() {
 
       {/* Links dos formulários externos */}
       <Card title="Links dos formulários externos" subtitle="Compartilhe estes links com clientes e colaboradores">
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Formulário para colaboradores</p>
-            <div className="flex items-center gap-2">
-              <input readOnly
-                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono"
-                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/formulario/colaborador?empresa=${slug}`}
-              />
-              <button
-                onClick={() => {
-                  const url = `${window.location.origin}/formulario/colaborador?empresa=${slug}`;
-                  navigator.clipboard.writeText(url);
-                }}
-                className="px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
-                Copiar link
-              </button>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1">Colaboradores cadastrados ficam com status Inativo — ative manualmente em /colaboradores.</p>
+        {!slug ? (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+            Slug da empresa não disponível na sessão. Faça logout e login novamente para carregar o link correto.
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Formulário para clientes (minuta contratual)</p>
-            <div className="flex items-center gap-2">
-              <input readOnly
-                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono"
-                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/formulario/cliente?empresa=${slug}`}
-              />
-              <button
-                onClick={() => {
-                  const url = `${window.location.origin}/formulario/cliente?empresa=${slug}`;
-                  navigator.clipboard.writeText(url);
-                }}
-                className="px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
-                Copiar link
-              </button>
+        ) : (
+          <div className="space-y-5">
+            {/* Formulário colaborador */}
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-[#1A6B4A] uppercase tracking-wider">Formulário para colaboradores</span>
+                <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Público</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mb-2">Colaboradores preenchem a própria ficha. Ficam como Inativos até você ativar em /colaboradores.</p>
+              <div className="flex items-center gap-2">
+                <input readOnly
+                  className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 font-mono"
+                  value={linkColab}
+                />
+                <button
+                  onClick={() => { navigator.clipboard.writeText(linkColab); }}
+                  className="px-3 py-2 text-xs text-white bg-[#1A6B4A] border border-[#1A6B4A] rounded-lg hover:bg-green-800 transition-colors whitespace-nowrap font-medium">
+                  Copiar
+                </button>
+                <a href={linkColab} target="_blank" rel="noreferrer"
+                  className="px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap">
+                  Abrir
+                </a>
+              </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">Clientes cadastrados ficam com status Prospect — ative manualmente em /clientes.</p>
+            {/* Formulário cliente */}
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-[#1A6B4A] uppercase tracking-wider">Formulário para clientes (minuta contratual)</span>
+                <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Público</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mb-2">Clientes preenchem os dados do contrato. Ficam como Prospect até você ativar em /clientes.</p>
+              <div className="flex items-center gap-2">
+                <input readOnly
+                  className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 font-mono"
+                  value={linkClient}
+                />
+                <button
+                  onClick={() => { navigator.clipboard.writeText(linkClient); }}
+                  className="px-3 py-2 text-xs text-white bg-[#1A6B4A] border border-[#1A6B4A] rounded-lg hover:bg-green-800 transition-colors whitespace-nowrap font-medium">
+                  Copiar
+                </button>
+                <a href={linkClient} target="_blank" rel="noreferrer"
+                  className="px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap">
+                  Abrir
+                </a>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </Card>
 
       <Card title="Parâmetros padrão do sistema">
@@ -216,7 +235,7 @@ export default function ConfiguracoesPage() {
             ['Horas mensais base', '160h'],
             ['Fuso horário', 'America/Sao_Paulo'],
             ['Moeda', 'BRL (Real)'],
-            ['Slug da empresa', slug],
+            ['Slug da empresa (URL formulários)', slug || 'Faça logout e login'],
           ].map(([l, v]) => (
             <div key={l} className="p-3 bg-gray-50 rounded-xl">
               <p className="text-[10px] text-gray-400 mb-1">{l}</p>

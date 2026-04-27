@@ -1,106 +1,80 @@
+// src/app/api/intake/colaborador/route.ts — v3.9
+// POST público — sem autenticação. Identificado por ?empresa=SLUG.
+// Colaborador preenche a própria ficha. Salvo com isActive=false para revisão.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const schema = z.object({
-  companySlug: z.string().min(2),
-  razaoSocial: z.string().min(2),
-  cnpj: z.string().optional().nullable(),
-  endereco: z.string().optional().nullable(),
-  representanteLegal: z.string().optional().nullable(),
-  testemunha: z.string().optional().nullable(),
-  emailRepresentante: z.union([z.string().email(), z.literal('')]).optional().nullable(),
-  cpfRepresentante: z.string().optional().nullable(),
-  formaPagamento: z.string().optional().nullable(),
-  diaVencimento: z.string().optional().nullable(),
-  responsavelFinanceiro: z.string().optional().nullable(),
-  responsavelProjeto: z.string().optional().nullable(),
-  regimeTributario: z.string().optional().nullable(),
-  tipoProjeto: z.string().optional().nullable(),
-  servicosContratados: z.string().optional().nullable(),
-  quantidadePagamentos: z.string().optional().nullable(),
-  valorMensal: z.number().optional().nullable(),
+  companySlug:      z.string().min(2),
+  name:             z.string().min(2),
+  razaoSocial:      z.string().optional().nullable(),
+  cnpj:             z.string().optional().nullable(),
+  document:         z.string().optional().nullable(),
+  rg:               z.string().optional().nullable(),
+  email:            z.string().email(),
+  phone:            z.string().min(1),
+  position:         z.string().min(1),
+  birthDate:        z.string().optional().nullable(),
+  estadoCivil:      z.string().optional().nullable(),
+  instagram:        z.string().optional().nullable(),
+  nivelExperiencia: z.string().optional().nullable(),
+  pixKey:           z.string().optional().nullable(),
+  bankData:         z.string().optional().nullable(),
+  salary:           z.number().optional().nullable(),
+  startDate:        z.string().optional().nullable(),
+  address:          z.string().optional().nullable(),
+  notes:            z.string().optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.json();
-    const data = schema.parse(rawBody);
+    const data = schema.parse(await req.json());
+    const company = await prisma.company.findUnique({ where: { slug: data.companySlug } });
+    if (!company) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
 
-    const company = await prisma.company.findFirst({
-      where: {
-        slug: {
-          equals: data.companySlug.trim(),
-          mode: 'insensitive',
-        },
-      },
-    });
-
-    let targetCompany = company;
-
-    if (!targetCompany) {
-      const fallbackSlug = data.companySlug.trim().replace(/\s+/g, '-');
-      targetCompany = await prisma.company.findFirst({
-        where: {
-          slug: {
-            equals: fallbackSlug,
-            mode: 'insensitive',
-          },
-        },
-      });
+    // Parse "Banco C6 - AG: 0001 - CC: 1234567-8" em partes
+    let bankName = '', bankAgency = '', bankAccount = '';
+    if (data.bankData) {
+      const parts = data.bankData.split(/[-\/|]/).map((p: string) => p.trim()).filter(Boolean);
+      bankName    = parts[0] || data.bankData;
+      bankAgency  = parts[1] || '';
+      bankAccount = parts[2] || '';
     }
 
-    if (!targetCompany) {
-      return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
-    }
-
-    const dueDay = parseInt(data.diaVencimento ?? '5') || 5;
-    const installments = parseInt(data.quantidadePagamentos ?? '12') || 12;
-    const revenue = data.valorMensal ?? 0;
-
-    const notes = [
-      data.endereco && `Endereço: ${data.endereco}`,
-      data.representanteLegal && `Rep. Legal: ${data.representanteLegal}`,
-      data.cpfRepresentante && `CPF Rep.: ${data.cpfRepresentante}`,
-      data.testemunha && `Testemunha: ${data.testemunha}`,
-      data.formaPagamento && `Forma pgto: ${data.formaPagamento}`,
-      data.responsavelFinanceiro && `Resp. Financeiro: ${data.responsavelFinanceiro}`,
-      data.responsavelProjeto && `Resp. Projeto: ${data.responsavelProjeto}`,
-      data.regimeTributario && `Regime: ${data.regimeTributario}`,
-      data.tipoProjeto && `Tipo projeto: ${data.tipoProjeto}`,
-      data.servicosContratados && `Serviços: ${data.servicosContratados}`,
-      data.quantidadePagamentos && `Qtd. pagamentos: ${data.quantidadePagamentos}`,
-      'Cadastro via formulário externo.',
-    ].filter(Boolean).join('\n');
-
-    const client = await prisma.client.create({
+    const colab = await prisma.collaborator.create({
       data: {
-        companyId: targetCompany.id,
-        name: data.razaoSocial,
-        document: data.cnpj ?? null,
-        email: data.emailRepresentante ?? null,
-        serviceType: 'OTHER' as any, // Garanta que 'OTHER' existe no seu Enum do Prisma
-        grossRevenue: revenue,
-        taxRate: 6,
-        netRevenue: revenue * 0.94,
-        isRecurring: true,
-        totalInstallments: installments,
-        currentInstallment: 1,
-        startDate: new Date(),
-        dueDay: dueDay,
-        status: 'PROSPECT',
-        riskLevel: 'LOW',
-        notes: notes,
+        companyId:        company.id,
+        name:             data.name,
+        position:         data.position,
+        type:             'PJ',
+        salary:           data.salary ?? 0,
+        hoursPerMonth:    160,
+        isActive:         false, // admin ativa após revisão
+        notes:            (data.notes ? data.notes + '\n' : '') + 'Cadastro via formulário externo.',
+        document:         data.document         ?? null,
+        rg:               data.rg               ?? null,
+        email:            data.email,
+        phone:            data.phone,
+        razaoSocial:      data.razaoSocial       ?? null,
+        cnpj:             data.cnpj              ?? null,
+        pixKey:           data.pixKey            ?? null,
+        bankName,
+        bankAgency,
+        bankAccount,
+        birthDate:        data.birthDate         ? new Date(data.birthDate)  : null,
+        startDate:        data.startDate         ? new Date(data.startDate)  : null,
+        address:          data.address           ?? null,
+        instagram:        data.instagram         ?? null,
+        nivelExperiencia: data.nivelExperiencia  ?? null,
+        estadoCivil:      data.estadoCivil       ?? null,
       },
     });
-
-    return NextResponse.json({ success: true, id: client.id }, { status: 201 });
-
+    return NextResponse.json({ success: true, id: colab.id }, { status: 201 });
   } catch (err: any) {
-    console.error('[API_ERROR]:', err); // Isso aparecerá nos logs da Vercel
-    if (err?.name === 'ZodError') {
+    if (err?.name === 'ZodError')
       return NextResponse.json({ error: 'Dados inválidos.', details: err.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: 'Erro interno.', message: err.message }, { status: 500 });
+    console.error('[intake/colaborador]', err?.message);
+    return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });
   }
 }
