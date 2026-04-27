@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import InputMask from 'react-input-mask';
 
 const I = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none transition-all placeholder:text-gray-300';
@@ -20,6 +20,8 @@ function Sec({ t }: { t: string }) {
 
 export default function FormCliente({ searchParams }: { searchParams: { empresa?: string } }) {
   const slug = searchParams.empresa || '';
+  const [mounted, setMounted] = useState(false);
+  
   const [f, setF] = useState({
     razaoSocial:'', cnpj:'', endereco:'',
     repNome:'', repRG:'', repCPF:'', repEstadoCivil:'', repEmail:'',
@@ -36,6 +38,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   const [done, setDone] = useState(false);
   const [tracking, setTracking] = useState('');
   const [error, setError] = useState('');
+
+  // Corrige o erro de hidratação em produção
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const set = (k: string) => (e: any) => setF(p => ({ ...p, [k]: e.target.value }));
 
@@ -103,7 +110,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             </div>
             <div>
               <label className={L}>CNPJ *</label>
-              <InputMask mask="99.999.999/9999-99" required className={I} placeholder="00.000.000/0000-00" value={f.cnpj} onChange={set('cnpj')} />
+              {mounted ? (
+                <InputMask mask="99.999.999/9999-99" required className={I} placeholder="00.000.000/0000-00" value={f.cnpj} onChange={set('cnpj')} />
+              ) : (
+                <input className={I} placeholder="00.000.000/0000-00" />
+              )}
             </div>
             <div>
               <label className={L}>Endereço Comercial *</label>
@@ -122,7 +133,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             </div>
             <div>
               <label className={L}>CPF *</label>
-              <InputMask mask="999.999.999-99" required className={I} placeholder="000.000.000-00" value={f.repCPF} onChange={set('repCPF')} />
+              {mounted ? (
+                <InputMask mask="999.999.999-99" required className={I} placeholder="000.000.000-00" value={f.repCPF} onChange={set('repCPF')} />
+              ) : (
+                <input className={I} placeholder="000.000.000-00" />
+              )}
             </div>
             <div>
               <label className={L}>Estado Civil *</label>
@@ -141,7 +156,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             </div>
             <div>
               <label className={L}>CPF da Testemunha *</label>
-              <InputMask mask="999.999.999-99" required className={I} placeholder="000.000.000-00" value={f.testCPF} onChange={set('testCPF')} />
+              {mounted ? (
+                <InputMask mask="999.999.999-99" required className={I} placeholder="000.000.000-00" value={f.testCPF} onChange={set('testCPF')} />
+              ) : (
+                <input className={I} placeholder="000.000.000-00" />
+              )}
             </div>
             <div>
               <label className={L}>E-mail da Testemunha *</label>
@@ -155,7 +174,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             </div>
             <div className="col-span-1">
               <label className={L}>WhatsApp Financeiro *</label>
-              <InputMask mask="(99) 99999-9999" required className={I} placeholder="(00) 00000-0000" value={f.finTelefone} onChange={set('finTelefone')} />
+              {mounted ? (
+                <InputMask mask="(99) 99999-9999" required className={I} placeholder="(00) 00000-0000" value={f.finTelefone} onChange={set('finTelefone')} />
+              ) : (
+                <input className={I} placeholder="(00) 00000-0000" />
+              )}
             </div>
             <div className="col-span-2">
               <label className={L}>E-mail p/ Notas Fiscais *</label>
@@ -168,7 +191,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             </div>
             <div className="col-span-1">
               <label className={L}>WhatsApp do Gestor *</label>
-              <InputMask mask="(99) 99999-9999" required className={I} placeholder="(00) 00000-0000" value={f.projTelefone} onChange={set('projTelefone')} />
+              {mounted ? (
+                <InputMask mask="(99) 99999-9999" required className={I} placeholder="(00) 00000-0000" value={f.projTelefone} onChange={set('projTelefone')} />
+              ) : (
+                <input className={I} placeholder="(00) 00000-0000" />
+              )}
             </div>
 
             <Sec t="5. Condições Comerciais" />
