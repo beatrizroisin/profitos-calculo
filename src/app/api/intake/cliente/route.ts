@@ -1,4 +1,4 @@
-// src/app/api/intake/cliente/route.ts — v3.9
+// src/app/api/intake/cliente/route.ts — v3.10
 // POST público — sem autenticação. Identificado por ?empresa=SLUG.
 // Cliente preenche minuta contratual. Salvo com status=PROSPECT para revisão.
 import { NextRequest, NextResponse } from 'next/server';
@@ -25,6 +25,12 @@ const schema = z.object({
   valorMensal:           z.number().optional().nullable(),
 });
 
+function extrairTelefone(str: string | null | undefined): string | null {
+  if (!str) return null;
+  const match = str.match(/\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4}/);
+  return match ? match[0] : null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const data = schema.parse(await req.json());
@@ -32,28 +38,30 @@ export async function POST(req: NextRequest) {
     if (!company) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 });
 
     const dueDay = parseInt(data.diaVencimento ?? '5') || 5;
+
     const notes = [
-      data.endereco              && `Endereço: ${data.endereco}`,
-      data.representanteLegal    && `Rep. Legal: ${data.representanteLegal}`,
-      data.cpfRepresentante      && `CPF Rep.: ${data.cpfRepresentante}`,
-      data.testemunha            && `Testemunha: ${data.testemunha}`,
-      data.formaPagamento        && `Forma pgto: ${data.formaPagamento}`,
-      data.responsavelFinanceiro && `Resp. Financeiro: ${data.responsavelFinanceiro}`,
-      data.responsavelProjeto    && `Resp. Projeto: ${data.responsavelProjeto}`,
-      data.regimeTributario      && `Regime: ${data.regimeTributario}`,
-      data.tipoProjeto           && `Tipo projeto: ${data.tipoProjeto}`,
-      data.servicosContratados   && `Serviços: ${data.servicosContratados}`,
-      data.quantidadePagamentos  && `Qtd. pagamentos: ${data.quantidadePagamentos}`,
-      'Cadastro via formulário externo.',
+      data.endereco              && `📍 Endereço: ${data.endereco}`,
+      data.representanteLegal    && `👤 Rep. Legal: ${data.representanteLegal}`,
+      data.cpfRepresentante      && `🪪 CPF Rep.: ${data.cpfRepresentante}`,
+      data.testemunha            && `✍️ Testemunha: ${data.testemunha}`,
+      data.formaPagamento        && `💳 Forma pgto: ${data.formaPagamento}`,
+      data.responsavelFinanceiro && `💰 Resp. Financeiro: ${data.responsavelFinanceiro}`,
+      data.responsavelProjeto    && `🚀 Resp. Projeto: ${data.responsavelProjeto}`,
+      data.regimeTributario      && `🏛️ Regime: ${data.regimeTributario}`,
+      data.tipoProjeto           && `📦 Tipo projeto: ${data.tipoProjeto}`,
+      data.servicosContratados   && `🛠️ Serviços: ${data.servicosContratados}`,
+      data.quantidadePagamentos  && `🔢 Parcelas: ${data.quantidadePagamentos}x`,
+      `📋 Origem: Formulário externo de minuta contratual`,
     ].filter(Boolean).join('\n');
 
     const client = await prisma.client.create({
       data: {
         companyId:          company.id,
         name:               data.razaoSocial,
-        document:           data.cnpj                ?? null,
+        document:           data.cnpj               ?? null,
         email:              data.emailRepresentante  ?? null,
-        serviceType:        'OTHER'                 as any,
+        phone:              extrairTelefone(data.responsavelFinanceiro ?? data.responsavelProjeto),
+        serviceType:        'OTHER',
         grossRevenue:       data.valorMensal         ?? 0,
         taxRate:            6,
         netRevenue:         (data.valorMensal        ?? 0) * 0.94,
@@ -67,6 +75,7 @@ export async function POST(req: NextRequest) {
         notes,
       },
     });
+
     return NextResponse.json({ success: true, id: client.id }, { status: 201 });
   } catch (err: any) {
     if (err?.name === 'ZodError')
