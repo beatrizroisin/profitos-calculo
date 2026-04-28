@@ -126,6 +126,35 @@ model Client {
   document                String?
   email                   String?
   phone                   String?
+  // Endereço
+  endRua                  String?
+  endNumero               String?
+  endBairro               String?
+  endCidade               String?
+  endEstado               String?
+  endCep                  String?
+  // Representante Legal
+  repNome                 String?
+  repRG                   String?
+  repCPF                  String?
+  repEstadoCivil          String?
+  // Testemunha
+  testNome                String?
+  testCPF                 String?
+  testEmail               String?
+  // Responsável Financeiro
+  finNome                 String?
+  finEmail                String?
+  finTelefone             String?
+  // Responsável Projeto
+  projNome                String?
+  projEmail               String?
+  projTelefone            String?
+  // Contrato
+  formaPagamento          String?
+  regimeTributario        String?
+  tipoProjeto             String?
+  servicosContratados     String?
   serviceType             ServiceType
   grossRevenue            Float
   taxRate                 Float                    @default(6.0)

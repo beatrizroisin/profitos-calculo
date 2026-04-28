@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import InputMask from 'react-input-mask';
 
 const I = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500 outline-none transition-all placeholder:text-gray-300';
+const IE = 'w-full px-3 py-2.5 border border-red-400 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-400 outline-none transition-all placeholder:text-gray-300';
 const L = 'block text-[10px] font-bold text-gray-500 uppercase mb-1';
 const HELP = 'text-[9px] text-gray-400 mt-1 italic leading-tight';
 
@@ -29,26 +30,24 @@ function Sec({ t }: { t: string }) {
   );
 }
 
+type FieldErrors = Record<string, string>;
+
 export default function FormCliente({ searchParams }: { searchParams: { empresa?: string } }) {
   const slug = searchParams.empresa || '';
   const [mounted, setMounted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const errorRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [f, setF] = useState({
-    // Empresa
-    razaoSocial: '', cnpj: '', endereco: '',
-    // Representante Legal
+    razaoSocial: '', cnpj: '',
+    endCep: '', endRua: '', endNumero: '', endBairro: '', endCidade: '', endEstado: '',
     repNome: '', repRG: '', repCPF: '', repEstadoCivil: '', repEmail: '',
-    // Testemunha
     testNome: '', testCPF: '', testEmail: '',
-    // Responsável Financeiro
     finNome: '', finEmail: '', finTelefone: '',
-    // Responsável Projeto
     projNome: '', projEmail: '', projTelefone: '',
-    // Contrato
     formaPagamento: 'Boleto', diaVencimento: '5',
     regimeTributario: '', tipoProjeto: '',
     quantidadePagamentos: '12', valorMensal: '',
-    // Serviços
     servicosContratados: [] as string[],
   });
 
@@ -59,44 +58,114 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
 
   useEffect(() => { setMounted(true); }, []);
 
-  const set = (k: string) => (e: any) => setF(p => ({ ...p, [k]: e.target.value }));
+  const set = (k: string) => (e: any) => {
+    setF(p => ({ ...p, [k]: e.target.value }));
+    setFieldErrors(prev => { const n = { ...prev }; delete n[k]; return n; });
+  };
+
+  // Busca CEP
+  async function buscarCep(cep: string) {
+    const clean = cep.replace(/\D/g, '');
+    if (clean.length !== 8) return;
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+      const d = await r.json();
+      if (!d.erro) {
+        setF(p => ({
+          ...p,
+          endRua:    d.logradouro || p.endRua,
+          endBairro: d.bairro     || p.endBairro,
+          endCidade: d.localidade || p.endCidade,
+          endEstado: d.uf         || p.endEstado,
+        }));
+      }
+    } catch {}
+  }
+
+  function scrollToField(key: string) {
+    const el = errorRefs.current[key];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!slug) return;
-    setSaving(true); setError('');
+    setSaving(true); setError(''); setFieldErrors({});
+
     try {
       const r = await fetch('/api/intake/cliente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companySlug: slug,
-          razaoSocial: f.razaoSocial,
-          cnpj: f.cnpj,
-          endereco: f.endereco,
-          representanteLegal: `${f.repNome} — RG ${f.repRG} — CPF ${f.repCPF} — ${f.repEstadoCivil} — ${f.repEmail}`,
-          emailRepresentante: f.repEmail,
-          cpfRepresentante: f.repCPF,
-          testemunha: `${f.testNome} — CPF ${f.testCPF} — ${f.testEmail}`,
-          responsavelFinanceiro: `${f.finNome} — ${f.finEmail} — ${f.finTelefone}`,
-          responsavelProjeto: `${f.projNome} — ${f.projEmail} — ${f.projTelefone}`,
-          formaPagamento: f.formaPagamento,
-          diaVencimento: f.diaVencimento,
-          regimeTributario: f.regimeTributario,
-          tipoProjeto: f.tipoProjeto,
-          servicosContratados: f.servicosContratados.join(', '),
+          companySlug:          slug,
+          razaoSocial:          f.razaoSocial,
+          cnpj:                 f.cnpj,
+          endCep:               f.endCep,
+          endRua:               f.endRua,
+          endNumero:            f.endNumero,
+          endBairro:            f.endBairro,
+          endCidade:            f.endCidade,
+          endEstado:            f.endEstado,
+          repNome:              f.repNome,
+          repRG:                f.repRG,
+          repCPF:               f.repCPF,
+          repEstadoCivil:       f.repEstadoCivil,
+          repEmail:             f.repEmail,
+          testNome:             f.testNome,
+          testCPF:              f.testCPF,
+          testEmail:            f.testEmail,
+          finNome:              f.finNome,
+          finEmail:             f.finEmail,
+          finTelefone:          f.finTelefone,
+          projNome:             f.projNome,
+          projEmail:            f.projEmail,
+          projTelefone:         f.projTelefone,
+          formaPagamento:       f.formaPagamento,
+          diaVencimento:        f.diaVencimento,
+          regimeTributario:     f.regimeTributario,
+          tipoProjeto:          f.tipoProjeto,
+          servicosContratados:  f.servicosContratados.join(', '),
           quantidadePagamentos: f.quantidadePagamentos,
-          valorMensal: parseFloat(f.valorMensal) || 0,
+          valorMensal:          parseFloat(f.valorMensal) || 0,
         }),
       });
+
       const d = await r.json();
-      if (r.ok) { setTracking(d.trackingNumber); setDone(true); }
-      else { setError(d.error || 'Verifique se todos os campos foram preenchidos.'); setSaving(false); }
+
+      if (r.ok) {
+        setTracking(d.id);
+        setDone(true);
+      } else if (r.status === 400 && d.details) {
+        // Mapeia erros do Zod para campos
+        const errs: FieldErrors = {};
+        const zodToField: Record<string, string> = {
+          razaoSocial: 'razaoSocial', repNome: 'repNome', repEmail: 'repEmail',
+        };
+        d.details.forEach((err: any) => {
+          const field = err.path?.[0];
+          if (field) errs[field] = err.message;
+        });
+        setFieldErrors(errs);
+        // Scrolla para o primeiro erro
+        const firstKey = Object.keys(errs)[0];
+        if (firstKey) setTimeout(() => scrollToField(firstKey), 100);
+        setError('Corrija os campos destacados em vermelho.');
+        setSaving(false);
+      } else {
+        setError(d.error || 'Erro ao enviar.');
+        setSaving(false);
+      }
     } catch {
       setError('Erro de conexão com o servidor.');
       setSaving(false);
     }
   }
+
+  const field = (key: string) => ({
+    ref: (el: HTMLDivElement | null) => { errorRefs.current[key] = el; },
+  });
+
+  const inp = (key: string) => fieldErrors[key] ? IE : I;
 
   if (done) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
@@ -136,9 +205,10 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
 
             {/* ── IDENTIFICAÇÃO DA EMPRESA ── */}
             <Sec t="Identificação da Empresa" />
-            <div className="col-span-2">
+            <div className="col-span-2" {...field('razaoSocial')}>
               <label className={L}>Razão Social *</label>
-              <input required className={I} placeholder="Nome completo da empresa" value={f.razaoSocial} onChange={set('razaoSocial')} />
+              <input required className={inp('razaoSocial')} placeholder="Nome completo da empresa" value={f.razaoSocial} onChange={set('razaoSocial')} />
+              {fieldErrors.razaoSocial && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.razaoSocial}</p>}
             </div>
             <div>
               <label className={L}>CNPJ</label>
@@ -146,16 +216,45 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
                 ? <InputMask mask="99.999.999/9999-99" className={I} placeholder="00.000.000/0001-00" value={f.cnpj} onChange={set('cnpj')} />
                 : <input className={I} placeholder="00.000.000/0001-00" />}
             </div>
+            <div />
+
+            {/* Endereço separado */}
             <div>
-              <label className={L}>Endereço completo</label>
-              <input className={I} placeholder="Rua, número, bairro, cidade, estado, CEP" value={f.endereco} onChange={set('endereco')} />
+              <label className={L}>CEP</label>
+              {mounted
+                ? <InputMask mask="99999-999" className={I} placeholder="00000-000" value={f.endCep}
+                    onChange={set('endCep')}
+                    onBlur={e => buscarCep(e.target.value)} />
+                : <input className={I} placeholder="00000-000" />}
+              <p className={HELP}>Digite o CEP para preencher o endereço automaticamente.</p>
+            </div>
+            <div>
+              <label className={L}>Número</label>
+              <input className={I} placeholder="123" value={f.endNumero} onChange={set('endNumero')} />
+            </div>
+            <div className="col-span-2">
+              <label className={L}>Rua / Logradouro</label>
+              <input className={I} placeholder="Rua das Flores" value={f.endRua} onChange={set('endRua')} />
+            </div>
+            <div>
+              <label className={L}>Bairro</label>
+              <input className={I} placeholder="Centro" value={f.endBairro} onChange={set('endBairro')} />
+            </div>
+            <div>
+              <label className={L}>Cidade</label>
+              <input className={I} placeholder="São Paulo" value={f.endCidade} onChange={set('endCidade')} />
+            </div>
+            <div>
+              <label className={L}>Estado (UF)</label>
+              <input className={I} placeholder="SP" maxLength={2} value={f.endEstado} onChange={set('endEstado')} />
             </div>
 
             {/* ── REPRESENTANTE LEGAL ── */}
             <Sec t="Representante Legal" />
-            <div className="col-span-2">
+            <div className="col-span-2" {...field('repNome')}>
               <label className={L}>Nome do Representante Legal *</label>
-              <input required className={I} placeholder="Nome completo de quem assina o contrato" value={f.repNome} onChange={set('repNome')} />
+              <input required className={inp('repNome')} placeholder="Nome completo de quem assina o contrato" value={f.repNome} onChange={set('repNome')} />
+              {fieldErrors.repNome && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.repNome}</p>}
               <p className={HELP}>Pessoa que assinará digitalmente ou fisicamente o documento.</p>
             </div>
             <div>
@@ -172,9 +271,10 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
               <label className={L}>Estado Civil</label>
               <input className={I} placeholder="Ex: Solteiro(a), Casado(a)" value={f.repEstadoCivil} onChange={set('repEstadoCivil')} />
             </div>
-            <div>
+            <div {...field('repEmail')}>
               <label className={L}>E-mail do Representante Legal *</label>
-              <input required type="email" className={I} placeholder="representante@empresa.com" value={f.repEmail} onChange={set('repEmail')} />
+              <input required type="email" className={inp('repEmail')} placeholder="representante@empresa.com" value={f.repEmail} onChange={set('repEmail')} />
+              {fieldErrors.repEmail && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.repEmail}</p>}
             </div>
 
             {/* ── TESTEMUNHA ── */}
