@@ -6,22 +6,16 @@ import { Card, Grid4, KPICard, Button, Alert, Pill } from '@/components/ui';
 import { BRL, SERVICE_TYPE_LABELS, RISK_LABELS, STATUS_LABELS } from '@/lib/utils';
 
 interface Client {
-  id: string; name: string; document?: string; email?: string; phone?: string;
+  id: string; orderId?: number; name: string; document?: string; email?: string; phone?: string;
   serviceType: string; grossRevenue: number; taxRate: number; netRevenue: number;
   isRecurring: boolean; totalInstallments: number; currentInstallment: number;
   startDate: string; dueDay: number; status: string; riskLevel: string; notes?: string;
-  // Endereço
   endRua?: string; endNumero?: string; endBairro?: string;
   endCidade?: string; endEstado?: string; endCep?: string;
-  // Representante
   repNome?: string; repRG?: string; repCPF?: string; repEstadoCivil?: string;
-  // Testemunha
   testNome?: string; testCPF?: string; testEmail?: string;
-  // Financeiro
   finNome?: string; finEmail?: string; finTelefone?: string;
-  // Projeto
   projNome?: string; projEmail?: string; projTelefone?: string;
-  // Contrato
   formaPagamento?: string; regimeTributario?: string;
   tipoProjeto?: string; servicosContratados?: string;
 }
@@ -53,16 +47,16 @@ function SecLabel({ t }: { t: string }) {
 
 export default function ClientesPage() {
   const searchParams = useSearchParams();
-  const [clients, setClients]         = useState<Client[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [showForm, setShowForm]       = useState(false);
-  const [editId, setEditId]           = useState<string | null>(null);
-  const [form, setForm]               = useState<Omit<Client,'id'>>({ ...EMPTY });
-  const [saving, setSaving]           = useState(false);
-  const [saved, setSaved]             = useState(false);
-  const [search, setSearch]           = useState('');
+  const [clients, setClients]           = useState<Client[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [showForm, setShowForm]         = useState(false);
+  const [editId, setEditId]             = useState<string | null>(null);
+  const [form, setForm]                 = useState<Omit<Client,'id'>>({ ...EMPTY });
+  const [saving, setSaving]             = useState(false);
+  const [saved, setSaved]               = useState(false);
+  const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [showExtra, setShowExtra]     = useState(false);
+  const [showExtra, setShowExtra]       = useState(false);
 
   useEffect(() => { if (searchParams.get('new') === '1') openNew(); }, []);
   useEffect(() => { fetchClients(); }, []);
@@ -97,7 +91,6 @@ export default function ClientesPage() {
   function openEdit(c: Client) {
     setEditId(c.id);
     setForm({ ...EMPTY, ...c, startDate: c.startDate.slice(0, 10) });
-    // Abre seção extra automaticamente se tiver dados contratuais
     setShowExtra(!!(c.repNome || c.endRua || c.finNome));
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -130,6 +123,8 @@ export default function ClientesPage() {
   const pipelineNet = pipeline.reduce((s, c) => s + c.netRevenue, 0);
 
   const I = "w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1A6B4A]/20 focus:border-[#1A6B4A] transition-colors";
+
+  const currentOrderId = editId ? clients.find(x => x.id === editId)?.orderId : undefined;
 
   return (
     <div className="space-y-5">
@@ -180,15 +175,38 @@ export default function ClientesPage() {
       {showForm && (
         <Card title={editId ? 'Editar cliente' : 'Novo cliente'} subtitle="Preencha os dados — o sistema calcula automaticamente">
           <form onSubmit={handleSubmit}>
+
+            {/* Row 1 — identificação */}
             <div className="grid grid-cols-3 gap-3 mb-3">
-              <div className="col-span-2">
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nome do cliente *</label>
-                <input required className={I} placeholder="Razão social ou nome fantasia" value={form.name} onChange={e => F('name', e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">CNPJ / CPF</label>
-                <input className={I} placeholder="00.000.000/0001-00" value={form.document||''} onChange={e => F('document', e.target.value)} />
-              </div>
+              {editId && currentOrderId !== undefined ? (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nº Contrato</label>
+                    <div className={`${I} bg-gray-50 border-gray-200 text-[#1A6B4A] font-mono font-bold cursor-default select-none pointer-events-none`}>
+                      {String(currentOrderId).padStart(3, '0')}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nome do cliente *</label>
+                    <input required className={I} placeholder="Razão social ou nome fantasia" value={form.name} onChange={e => F('name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">CNPJ / CPF</label>
+                    <input className={I} placeholder="00.000.000/0001-00" value={form.document||''} onChange={e => F('document', e.target.value)} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nome do cliente *</label>
+                    <input required className={I} placeholder="Razão social ou nome fantasia" value={form.name} onChange={e => F('name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">CNPJ / CPF</label>
+                    <input className={I} placeholder="00.000.000/0001-00" value={form.document||''} onChange={e => F('document', e.target.value)} />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-3 mb-3">
@@ -208,6 +226,7 @@ export default function ClientesPage() {
               </div>
             </div>
 
+            {/* Row 2 — financeiro */}
             <div className="grid grid-cols-4 gap-3 mb-3">
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Faturamento bruto (R$) *</label>
@@ -238,6 +257,7 @@ export default function ClientesPage() {
               </div>
             </div>
 
+            {/* Row 3 — contrato */}
             <div className="grid grid-cols-4 gap-3 mb-3">
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Tipo de contrato</label>
@@ -461,6 +481,7 @@ export default function ClientesPage() {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left px-5 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Cliente</th>
+                  <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Nº Contrato</th>
                   <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Serviço</th>
                   <th className="text-right py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Bruto/mês</th>
                   <th className="text-right py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Imposto</th>
@@ -473,7 +494,7 @@ export default function ClientesPage() {
               </thead>
               <tbody>
                 {clients.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-sm text-gray-400">
+                  <tr><td colSpan={10} className="text-center py-12 text-sm text-gray-400">
                     Nenhum cliente encontrado. <button onClick={openNew} className="text-[#1A6B4A] underline">Adicionar →</button>
                   </td></tr>
                 ) : clients.map(c => {
@@ -483,6 +504,11 @@ export default function ClientesPage() {
                       <td className="px-5 py-3">
                         <p className="font-medium text-gray-800 truncate max-w-[180px]">{c.name}</p>
                         {c.email && <p className="text-[10px] text-gray-400 mt-0.5">{c.email}</p>}
+                      </td>
+                      <td className="py-3">
+                        <span className="font-mono text-[#1A6B4A] font-bold bg-green-50 px-1.5 py-0.5 rounded text-[10px]">
+                          {String(c.orderId ?? 0).padStart(3, '0')}
+                        </span>
                       </td>
                       <td className="py-3 text-gray-500 max-w-[130px]"><span className="truncate block">{SERVICE_TYPE_LABELS[c.serviceType]}</span></td>
                       <td className="py-3 text-right text-gray-500">{BRL(c.grossRevenue)}</td>
@@ -506,7 +532,7 @@ export default function ClientesPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50">
-                  <td colSpan={2} className="px-5 py-2.5 text-[11px] text-gray-500 font-medium">{clients.length} clientes</td>
+                  <td colSpan={3} className="px-5 py-2.5 text-[11px] text-gray-500 font-medium">{clients.length} clientes</td>
                   <td className="py-2.5 text-right text-[11px] font-medium text-gray-700">{BRL(clients.reduce((s,c)=>s+c.grossRevenue,0))}</td>
                   <td className="py-2.5 text-right text-[11px] font-medium text-amber-600">–{BRL(clients.reduce((s,c)=>s+(c.grossRevenue-c.netRevenue),0))}</td>
                   <td className="py-2.5 text-right text-[11px] font-medium text-green-700">{BRL(clients.reduce((s,c)=>s+c.netRevenue,0))}</td>

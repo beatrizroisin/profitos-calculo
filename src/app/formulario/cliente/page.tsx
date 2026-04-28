@@ -132,10 +132,10 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
 
       const d = await r.json();
 
-      if (r.ok) {
-        setTracking(d.id);
-        setDone(true);
-      } else if (r.status === 400 && d.details) {
+    if (r.ok) {
+      setTracking(d.trackingNumber); 
+      setDone(true);
+    } else if (r.status === 400 && d.details) {
         // Mapeia erros do Zod para campos
         const errs: FieldErrors = {};
         const zodToField: Record<string, string> = {
