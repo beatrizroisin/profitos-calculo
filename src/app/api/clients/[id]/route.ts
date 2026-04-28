@@ -77,7 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: process.env.EMAIL_FROM || 'noreply@profitos.app',
-          to: 'beatriz.roisin@almahcomunicacao.com.br',
+          to: 'financeiro@almahcomunicacao.com.br',
           subject: `✅ Cliente ativado: ${updated.name} — profitOS`,
           html: buildClientEmail(updated),
         });
