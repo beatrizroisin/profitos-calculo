@@ -7,31 +7,49 @@ const L = 'block text-[10px] font-bold text-gray-500 uppercase mb-1';
 const HELP = 'text-[9px] text-gray-400 mt-1 italic leading-tight';
 
 const SERVICOS = [
-  'Migração para VTEX IO com Redesign', 'Arquitetura de E-commerce', 'Implantação de E-commerce',
-  'Pacote de Evolução Básico', 'Pacote de Evolução Intermediário', 'Pacote de Evolução Avançado',
-  'Plano de Evolução — Horas', 'SEO', 'Inbound Marketing', 'Performance'
+  'Migração para VTEX IO com Redesign',
+  'Arquitetura de E-commerce',
+  'Implantação de E-commerce',
+  'Pacote de Evolução Básico — Suporte + Manutenção do Front end',
+  'Pacote de Evolução Intermediário — Growth (CRO+SEO) + Suporte + Manutenção + UX',
+  'Pacote de Evolução Avançado — Performance + Inbound + Growth + Suporte + UX',
+  'Plano de Evolução — Horas',
+  'Plano de Evolução — Semidedicado',
+  'Profissionais 100% Dedicados (Outsourcing)',
+  'SEO',
+  'Inbound Marketing',
+  'Performance',
 ];
 
 function Sec({ t }: { t: string }) {
-  return <div className="col-span-2 mt-6 mb-2 border-b border-green-100 pb-1">
-    <p className="text-[10px] font-black text-[#1A6B4A] uppercase tracking-[0.2em]">{t}</p>
-  </div>;
+  return (
+    <div className="col-span-2 mt-6 mb-2 border-b border-green-100 pb-1">
+      <p className="text-[10px] font-black text-[#1A6B4A] uppercase tracking-[0.2em]">{t}</p>
+    </div>
+  );
 }
 
 export default function FormCliente({ searchParams }: { searchParams: { empresa?: string } }) {
   const slug = searchParams.empresa || '';
   const [mounted, setMounted] = useState(false);
-  
+
   const [f, setF] = useState({
-    razaoSocial:'', cnpj:'', endereco:'',
-    repNome:'', repRG:'', repCPF:'', repEstadoCivil:'', repEmail:'',
-    testNome:'', testCPF:'', testEmail:'',
-    finNome:'', finEmail:'', finTelefone:'',
-    projNome:'', projEmail:'', projTelefone:'',
-    formaPagamento:'Boleto', diaVencimento:'5',
-    regimeTributario:'', tipoProjeto:'',
-    servicosContratados:[] as string[],
-    quantidadePagamentos:'12', valorMensal:'',
+    // Empresa
+    razaoSocial: '', cnpj: '', endereco: '',
+    // Representante Legal
+    repNome: '', repRG: '', repCPF: '', repEstadoCivil: '', repEmail: '',
+    // Testemunha
+    testNome: '', testCPF: '', testEmail: '',
+    // Responsável Financeiro
+    finNome: '', finEmail: '', finTelefone: '',
+    // Responsável Projeto
+    projNome: '', projEmail: '', projTelefone: '',
+    // Contrato
+    formaPagamento: 'Boleto', diaVencimento: '5',
+    regimeTributario: '', tipoProjeto: '',
+    quantidadePagamentos: '12', valorMensal: '',
+    // Serviços
+    servicosContratados: [] as string[],
   });
 
   const [saving, setSaving] = useState(false);
@@ -39,10 +57,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   const [tracking, setTracking] = useState('');
   const [error, setError] = useState('');
 
-  // Corrige o erro de hidratação em produção
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const set = (k: string) => (e: any) => setF(p => ({ ...p, [k]: e.target.value }));
 
@@ -50,27 +65,33 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
     e.preventDefault();
     if (!slug) return;
     setSaving(true); setError('');
-
     try {
       const r = await fetch('/api/intake/cliente', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companySlug: slug, ...f,
+          companySlug: slug,
+          razaoSocial: f.razaoSocial,
+          cnpj: f.cnpj,
+          endereco: f.endereco,
+          representanteLegal: `${f.repNome} — RG ${f.repRG} — CPF ${f.repCPF} — ${f.repEstadoCivil} — ${f.repEmail}`,
+          emailRepresentante: f.repEmail,
+          cpfRepresentante: f.repCPF,
+          testemunha: `${f.testNome} — CPF ${f.testCPF} — ${f.testEmail}`,
+          responsavelFinanceiro: `${f.finNome} — ${f.finEmail} — ${f.finTelefone}`,
+          responsavelProjeto: `${f.projNome} — ${f.projEmail} — ${f.projTelefone}`,
+          formaPagamento: f.formaPagamento,
+          diaVencimento: f.diaVencimento,
+          regimeTributario: f.regimeTributario,
+          tipoProjeto: f.tipoProjeto,
           servicosContratados: f.servicosContratados.join(', '),
+          quantidadePagamentos: f.quantidadePagamentos,
           valorMensal: parseFloat(f.valorMensal) || 0,
         }),
       });
-
       const d = await r.json();
-
-      if (r.ok) {
-        setTracking(d.trackingNumber);
-        setDone(true);
-      } else {
-        setError(d.error || 'Verifique se todos os campos foram preenchidos.');
-        setSaving(false);
-      }
+      if (r.ok) { setTracking(d.trackingNumber); setDone(true); }
+      else { setError(d.error || 'Verifique se todos os campos foram preenchidos.'); setSaving(false); }
     } catch {
       setError('Erro de conexão com o servidor.');
       setSaving(false);
@@ -81,7 +102,9 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
       <div className="bg-white p-10 rounded-3xl shadow-xl text-center max-w-sm border border-gray-100">
         <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-100">
-          <span className="text-green-600 font-black text-2xl">{tracking}</span>
+          <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-800">Sucesso!</h2>
         <p className="text-gray-500 mt-2 text-sm">A sua minuta foi recebida pela equipe ALMAH.</p>
@@ -96,7 +119,6 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 font-sans">
       <div className="max-w-3xl mx-auto">
-        <form onSubmit={submit} className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
         <div className="flex items-center gap-3 mb-7">
           <div className="w-9 h-9 bg-[#1A6B4A] rounded-xl flex items-center justify-center flex-shrink-0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2">
@@ -108,150 +130,183 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             <p className="text-xs text-gray-400">Preencha as informações para formalização do contrato</p>
           </div>
         </div>
-          
+
+        <form onSubmit={submit} className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
           <div className="grid grid-cols-2 gap-4">
-            <Sec t="1. Dados da Empresa" />
+
+            {/* ── IDENTIFICAÇÃO DA EMPRESA ── */}
+            <Sec t="Identificação da Empresa" />
             <div className="col-span-2">
               <label className={L}>Razão Social *</label>
-              <input required className={I} placeholder="Ex: Minha Empresa de Tecnologia LTDA" value={f.razaoSocial} onChange={set('razaoSocial')} />
+              <input required className={I} placeholder="Nome completo da empresa" value={f.razaoSocial} onChange={set('razaoSocial')} />
             </div>
             <div>
-              <label className={L}>CNPJ *</label>
-              {mounted ? (
-                <InputMask mask="99.999.999/9999-99" required className={I} placeholder="00.000.000/0000-00" value={f.cnpj} onChange={set('cnpj')} />
-              ) : (
-                <input className={I} placeholder="00.000.000/0000-00" />
-              )}
+              <label className={L}>CNPJ</label>
+              {mounted
+                ? <InputMask mask="99.999.999/9999-99" className={I} placeholder="00.000.000/0001-00" value={f.cnpj} onChange={set('cnpj')} />
+                : <input className={I} placeholder="00.000.000/0001-00" />}
             </div>
             <div>
-              <label className={L}>Endereço Comercial *</label>
-              <input required className={I} placeholder="Rua, Número, Bairro, Cidade - UF" value={f.endereco} onChange={set('endereco')} />
+              <label className={L}>Endereço completo</label>
+              <input className={I} placeholder="Rua, número, bairro, cidade, estado, CEP" value={f.endereco} onChange={set('endereco')} />
             </div>
 
-            <Sec t="2. Representante Legal" />
+            {/* ── REPRESENTANTE LEGAL ── */}
+            <Sec t="Representante Legal" />
             <div className="col-span-2">
-              <label className={L}>Nome do Representante *</label>
-              <input required className={I} placeholder="Nome de quem tem poder de assinatura" value={f.repNome} onChange={set('repNome')} />
-              <p className={HELP}>Pessoa que assinará digitalmente/fisicamente o documento.</p>
+              <label className={L}>Nome do Representante Legal *</label>
+              <input required className={I} placeholder="Nome completo de quem assina o contrato" value={f.repNome} onChange={set('repNome')} />
+              <p className={HELP}>Pessoa que assinará digitalmente ou fisicamente o documento.</p>
             </div>
             <div>
-              <label className={L}>RG *</label>
-              <input required className={I} placeholder="00.000.000-0" value={f.repRG} onChange={set('repRG')} />
+              <label className={L}>RG</label>
+              <input className={I} placeholder="00.000.000-0" value={f.repRG} onChange={set('repRG')} />
             </div>
             <div>
-              <label className={L}>CPF *</label>
-              {mounted ? (
-                <InputMask mask="999.999.999-99" required className={I} placeholder="000.000.000-00" value={f.repCPF} onChange={set('repCPF')} />
-              ) : (
-                <input className={I} placeholder="000.000.000-00" />
-              )}
+              <label className={L}>CPF do Representante Legal</label>
+              {mounted
+                ? <InputMask mask="999.999.999-99" className={I} placeholder="000.000.000-00" value={f.repCPF} onChange={set('repCPF')} />
+                : <input className={I} placeholder="000.000.000-00" />}
             </div>
             <div>
-              <label className={L}>Estado Civil *</label>
-              <input required className={I} placeholder="Ex: Solteiro(a), Casado(a)" value={f.repEstadoCivil} onChange={set('repEstadoCivil')} />
+              <label className={L}>Estado Civil</label>
+              <input className={I} placeholder="Ex: Solteiro(a), Casado(a)" value={f.repEstadoCivil} onChange={set('repEstadoCivil')} />
             </div>
             <div>
-              <label className={L}>E-mail Principal *</label>
-              <input required type="email" className={I} placeholder="representante@email.com" value={f.repEmail} onChange={set('repEmail')} />
+              <label className={L}>E-mail do Representante Legal *</label>
+              <input required type="email" className={I} placeholder="representante@empresa.com" value={f.repEmail} onChange={set('repEmail')} />
             </div>
 
-            <Sec t="3. Testemunha de Contrato" />
+            {/* ── TESTEMUNHA ── */}
+            <Sec t="Testemunha" />
             <div className="col-span-2">
-              <label className={L}>Nome da Testemunha *</label>
-              <input required className={I} placeholder="Ex: Sócio ou gerente da empresa" value={f.testNome} onChange={set('testNome')} />
+              <label className={L}>Nome da Testemunha</label>
+              <input className={I} placeholder="Nome completo da testemunha" value={f.testNome} onChange={set('testNome')} />
               <p className={HELP}>Segunda pessoa necessária para validar a minuta.</p>
             </div>
             <div>
-              <label className={L}>CPF da Testemunha *</label>
-              {mounted ? (
-                <InputMask mask="999.999.999-99" required className={I} placeholder="000.000.000-00" value={f.testCPF} onChange={set('testCPF')} />
-              ) : (
-                <input className={I} placeholder="000.000.000-00" />
-              )}
+              <label className={L}>CPF da Testemunha</label>
+              {mounted
+                ? <InputMask mask="999.999.999-99" className={I} placeholder="000.000.000-00" value={f.testCPF} onChange={set('testCPF')} />
+                : <input className={I} placeholder="000.000.000-00" />}
             </div>
             <div>
-              <label className={L}>E-mail da Testemunha *</label>
-              <input required type="email" className={I} placeholder="testemunha@email.com" value={f.testEmail} onChange={set('testEmail')} />
+              <label className={L}>E-mail da Testemunha</label>
+              <input type="email" className={I} placeholder="testemunha@empresa.com" value={f.testEmail} onChange={set('testEmail')} />
             </div>
 
-            <Sec t="4. Contatos Operacionais" />
-            <div className="col-span-1">
-              <label className={L}>Nome Financeiro *</label>
-              <input required className={I} placeholder="Responsável p/ faturas" value={f.finNome} onChange={set('finNome')} />
+            {/* ── RESPONSÁVEL FINANCEIRO ── */}
+            <Sec t="Responsável Financeiro" />
+            <div>
+              <label className={L}>Nome</label>
+              <input className={I} placeholder="Nome do responsável financeiro" value={f.finNome} onChange={set('finNome')} />
             </div>
-            <div className="col-span-1">
-              <label className={L}>WhatsApp Financeiro *</label>
-              {mounted ? (
-                <InputMask mask="(99) 99999-9999" required className={I} placeholder="(00) 00000-0000" value={f.finTelefone} onChange={set('finTelefone')} />
-              ) : (
-                <input className={I} placeholder="(00) 00000-0000" />
-              )}
+            <div>
+              <label className={L}>Telefone</label>
+              {mounted
+                ? <InputMask mask="(99) 99999-9999" className={I} placeholder="(11) 99999-0000" value={f.finTelefone} onChange={set('finTelefone')} />
+                : <input className={I} placeholder="(11) 99999-0000" />}
             </div>
             <div className="col-span-2">
-              <label className={L}>E-mail p/ Notas Fiscais *</label>
-              <input required type="email" className={I} placeholder="financeiro@empresa.com" value={f.finEmail} onChange={set('finEmail')} />
-            </div>
-            <hr className="col-span-2 my-2 opacity-20" />
-            <div className="col-span-1">
-              <label className={L}>Gestor do Projeto *</label>
-              <input required className={I} placeholder="Quem acompanhará a implantação?" value={f.projNome} onChange={set('projNome')} />
-            </div>
-            <div className="col-span-1">
-              <label className={L}>WhatsApp do Gestor *</label>
-              {mounted ? (
-                <InputMask mask="(99) 99999-9999" required className={I} placeholder="(00) 00000-0000" value={f.projTelefone} onChange={set('projTelefone')} />
-              ) : (
-                <input className={I} placeholder="(00) 00000-0000" />
-              )}
+              <label className={L}>E-mail p/ Notas Fiscais</label>
+              <input type="email" className={I} placeholder="financeiro@empresa.com" value={f.finEmail} onChange={set('finEmail')} />
             </div>
 
-            <Sec t="5. Condições Comerciais" />
+            {/* ── RESPONSÁVEL PELO PROJETO ── */}
+            <Sec t="Responsável pelo Projeto" />
             <div>
-              <label className={L}>Dia de Vencimento *</label>
+              <label className={L}>Nome</label>
+              <input className={I} placeholder="Nome do gestor do projeto" value={f.projNome} onChange={set('projNome')} />
+              <p className={HELP}>Quem acompanhará a implantação do projeto.</p>
+            </div>
+            <div>
+              <label className={L}>Telefone</label>
+              {mounted
+                ? <InputMask mask="(99) 99999-9999" className={I} placeholder="(11) 88888-0000" value={f.projTelefone} onChange={set('projTelefone')} />
+                : <input className={I} placeholder="(11) 88888-0000" />}
+            </div>
+            <div className="col-span-2">
+              <label className={L}>E-mail do Responsável pelo Projeto</label>
+              <input type="email" className={I} placeholder="projeto@empresa.com" value={f.projEmail} onChange={set('projEmail')} />
+            </div>
+
+            {/* ── CONTRATO E PAGAMENTO ── */}
+            <Sec t="Contrato e Pagamento" />
+            <div>
+              <label className={L}>Forma de pagamento</label>
+              <select className={I} value={f.formaPagamento} onChange={set('formaPagamento')}>
+                <option>Boleto</option>
+                <option>Transferência Bancária</option>
+                <option>PIX</option>
+              </select>
+            </div>
+            <div>
+              <label className={L}>Dia de vencimento</label>
               <select className={I} value={f.diaVencimento} onChange={set('diaVencimento')}>
-                {['5','10','15','20','25'].map(d => <option key={d} value={d}>Todo dia {d}</option>)}
+                <option value="5">Dia 5</option>
+                <option value="10">Dia 10</option>
+                <option value="15">Dia 15</option>
+                <option value="20">Dia 20</option>
+                <option value="25">Dia 25</option>
               </select>
             </div>
             <div>
-              <label className={L}>Regime Tributário *</label>
-              <select required className={I} value={f.regimeTributario} onChange={set('regimeTributario')}>
+              <label className={L}>Regime tributário</label>
+              <select className={I} value={f.regimeTributario} onChange={set('regimeTributario')}>
                 <option value="">Selecione...</option>
-                <option>Simples Nacional</option><option>Lucro Presumido</option><option>Lucro Real</option>
+                <option>Simples Nacional</option>
+                <option>Lucro Presumido</option>
+                <option>Lucro Real</option>
               </select>
             </div>
             <div>
-              <label className={L}>Parcelas Totais *</label>
-              <input type="number" required className={I} placeholder="Ex: 12" value={f.quantidadePagamentos} onChange={set('quantidadePagamentos')} />
+              <label className={L}>Tipo de projeto</label>
+              <select className={I} value={f.tipoProjeto} onChange={set('tipoProjeto')}>
+                <option value="">Selecione...</option>
+                <option>B2C</option>
+                <option>B2B</option>
+                <option>D2C</option>
+                <option>B2C, B2B</option>
+              </select>
             </div>
             <div>
-              <label className={L}>Valor da Parcela (R$) *</label>
-              <input type="number" step="0.01" required className={I} placeholder="0,00" value={f.valorMensal} onChange={set('valorMensal')} />
+              <label className={L}>Quantidade de parcelas</label>
+              <input type="number" min="1" className={I} placeholder="12" value={f.quantidadePagamentos} onChange={set('quantidadePagamentos')} />
+            </div>
+            <div>
+              <label className={L}>Valor da parcela (R$)</label>
+              <input type="number" min="0" step="0.01" className={I} placeholder="0,00" value={f.valorMensal} onChange={set('valorMensal')} />
             </div>
 
-            <div className="col-span-2 mt-4">
-              <label className={L}>Serviços Contratados *</label>
-              <p className={HELP}>Marque todos os itens inclusos neste contrato.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-                {SERVICOS.map(s => (
-                  <label key={s} className="flex items-center gap-2 p-2 border border-gray-100 rounded-lg hover:bg-green-50 cursor-pointer transition-colors group">
-                    <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[#1A6B4A] focus:ring-[#1A6B4A]" 
-                      checked={f.servicosContratados.includes(s)} 
-                      onChange={() => setF(p => ({
-                        ...p, servicosContratados: p.servicosContratados.includes(s) 
-                        ? p.servicosContratados.filter(x => x !== s) 
-                        : [...p.servicosContratados, s]
-                      }))}
-                    />
-                    <span className="text-[11px] text-gray-600 group-hover:text-gray-900">{s}</span>
-                  </label>
-                ))}
-              </div>
+            {/* ── SERVIÇOS CONTRATADOS ── */}
+            <Sec t="Serviços Contratados" />
+            <div className="col-span-2 space-y-2">
+              {SERVICOS.map(s => (
+                <label key={s} className="flex items-center gap-2.5 cursor-pointer p-2 border border-gray-100 rounded-lg hover:bg-green-50 transition-colors group">
+                  <input
+                    type="checkbox"
+                    checked={f.servicosContratados.includes(s)}
+                    onChange={() => setF(p => ({
+                      ...p,
+                      servicosContratados: p.servicosContratados.includes(s)
+                        ? p.servicosContratados.filter(x => x !== s)
+                        : [...p.servicosContratados, s],
+                    }))}
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{s}</span>
+                </label>
+              ))}
             </div>
+
           </div>
 
-          {error && <p className="text-red-500 text-xs mt-6 font-bold bg-red-50 p-4 rounded-xl border border-red-100">{error}</p>}
+          {error && (
+            <p className="text-red-500 text-xs mt-6 font-bold bg-red-50 p-4 rounded-xl border border-red-100">{error}</p>
+          )}
 
-          <button type="submit" disabled={saving} className="w-full mt-10 py-5 bg-[#1A6B4A] text-white font-black rounded-2xl hover:bg-[#145339] disabled:opacity-50 transition-all shadow-xl shadow-green-100 uppercase tracking-widest text-[11px]">
+          <button type="submit" disabled={saving}
+            className="w-full mt-10 py-5 bg-[#1A6B4A] text-white font-black rounded-2xl hover:bg-[#145339] disabled:opacity-50 transition-all shadow-xl shadow-green-100 uppercase tracking-widest text-[11px]">
             {saving ? 'Validando informações...' : 'Finalizar e Enviar para ALMAH'}
           </button>
         </form>
