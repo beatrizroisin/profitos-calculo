@@ -97,10 +97,17 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
     <div className="min-h-screen bg-gray-50 py-12 px-4 font-sans">
       <div className="max-w-3xl mx-auto">
         <form onSubmit={submit} className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <div className="mb-8">
-            <h1 className="text-2xl font-black text-gray-800 tracking-tight">Minuta Contratual — ALMAH</h1>
-            <p className="text-sm text-gray-400 mt-1">Siga os passos abaixo para formalizar seu contrato conosco.</p>
+        <div className="flex items-center gap-3 mb-7">
+          <div className="w-9 h-9 bg-[#1A6B4A] rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
           </div>
+          <div>
+            <p className="font-bold text-gray-900">Minuta Contratual — ALMAH</p>
+            <p className="text-xs text-gray-400">Preencha as informações para formalização do contrato</p>
+          </div>
+        </div>
           
           <div className="grid grid-cols-2 gap-4">
             <Sec t="1. Dados da Empresa" />
