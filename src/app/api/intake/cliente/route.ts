@@ -121,6 +121,65 @@ export async function POST(req: NextRequest) {
       select: { orderId: true },
     });
 
+    // Disparo de email
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const { Resend } = await import('resend');
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+          to: 'beatriz.roisin@almahcomunicacao.com.br',
+          subject: `Formulário preenchido — ${data.razaoSocial} — ${new Date().toLocaleDateString('pt-BR')}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#111">
+              <div style="background:#1A6B4A;padding:20px 24px;border-radius:12px 12px 0 0">
+                <h1 style="color:white;margin:0;font-size:20px">📋 Nova Minuta Contratual Recebida</h1>
+                <p style="color:#a7f3d0;margin:4px 0 0;font-size:13px">profitOS — Formulário de Cliente</p>
+              </div>
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:24px">
+                <p style="font-size:15px;color:#111;margin:0 0 16px">
+                  <strong>${data.razaoSocial}</strong> preencheu e enviou a minuta contratual em
+                  <strong>${new Date().toLocaleString('pt-BR')}</strong>.
+                </p>
+                <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
+                  <tr><td style="padding:6px 0;color:#6b7280;width:40%">Nº Contrato</td><td style="padding:6px 0;font-weight:600">${String(clientWithOrder?.orderId ?? 0).padStart(3, '0')}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Razão Social</td><td style="padding:6px 0;font-weight:600">${data.razaoSocial}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">CNPJ</td><td style="padding:6px 0">${data.cnpj || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Endereço</td><td style="padding:6px 0">${endereco || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Aniversário Rep.</td><td style="padding:6px 0">${data.aniversario ? new Date(data.aniversario + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Rep. Legal</td><td style="padding:6px 0">${data.repNome || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">RG</td><td style="padding:6px 0">${data.repRG || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">CPF</td><td style="padding:6px 0">${data.repCPF || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Estado Civil</td><td style="padding:6px 0">${data.repEstadoCivil || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">E-mail Rep.</td><td style="padding:6px 0">${data.repEmail || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Testemunha</td><td style="padding:6px 0">${data.testNome || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">CPF Testemunha</td><td style="padding:6px 0">${data.testCPF || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">E-mail Testemunha</td><td style="padding:6px 0">${data.testEmail || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Resp. Financeiro</td><td style="padding:6px 0">${data.finNome || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">E-mail Financeiro</td><td style="padding:6px 0">${data.finEmail || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Tel. Financeiro</td><td style="padding:6px 0">${data.finTelefone || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Resp. Projeto</td><td style="padding:6px 0">${data.projNome || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">E-mail Projeto</td><td style="padding:6px 0">${data.projEmail || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Tel. Projeto</td><td style="padding:6px 0">${data.projTelefone || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Forma de Pgto</td><td style="padding:6px 0">${data.formaPagamento || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Dia Vencimento</td><td style="padding:6px 0">${data.diaVencimento ? `Dia ${data.diaVencimento}` : '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Regime Tributário</td><td style="padding:6px 0">${data.regimeTributario || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Tipo de Projeto</td><td style="padding:6px 0">${data.tipoProjeto || '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Parcelas</td><td style="padding:6px 0">${data.quantidadePagamentos ? `${data.quantidadePagamentos}x de R$ ${(data.valorMensal ?? 0).toFixed(2)}` : '—'}</td></tr>
+                  <tr><td style="padding:6px 0;color:#6b7280">Serviços</td><td style="padding:6px 0">${data.servicosContratados || '—'}</td></tr>
+                </table>
+                <p style="font-size:11px;color:#9ca3af;margin-top:24px;text-align:center">
+                  Gerado automaticamente pelo profitOS · ${new Date().toLocaleString('pt-BR')}
+                </p>
+              </div>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        console.error('[email] Falha ao enviar notificação de cliente:', emailErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       trackingNumber: String(clientWithOrder?.orderId ?? 0).padStart(3, '0'),
