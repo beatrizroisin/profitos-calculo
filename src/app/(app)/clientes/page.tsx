@@ -70,7 +70,10 @@ export default function ClientesPage() {
     if (statusFilter) params.set('status', statusFilter);
     if (search)       params.set('search', search);
     const res = await fetch(`/api/clients?${params}`);
-    if (res.ok) setClients(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setClients(data.sort((a: any, b: any) => (a.orderId ?? 0) - (b.orderId ?? 0)));
+    }
     setLoading(false);
   }
 
