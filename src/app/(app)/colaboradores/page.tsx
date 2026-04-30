@@ -75,8 +75,12 @@ const TYPE_COLOR: Record<string,string> = {
 const AVC = ['#1A6B4A','#2563EB','#7C3AED','#DC3545','#E67E22','#0891B2','#DB2777','#65A30D'];
 const ini = (n:string) => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const avc = (id:string) => AVC[parseInt(id.replace(/\D/g,'').slice(-2)||'0')%AVC.length];
-const fmt = (d:string|null|undefined) => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
-
+const fmt = (d:string|null|undefined) => {
+  if (!d) return '—';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+};
 // ─── Section title ────────────────────────────────────────────────────────────
 function SecTitle({ children }: { children: React.ReactNode }) {
   return (
