@@ -39,7 +39,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   const errorRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [f, setF] = useState({
-    razaoSocial: '', cnpj: '',
+    razaoSocial: '', cnpj: '', aniversario: '',
     endCep: '', endRua: '', endNumero: '', endBairro: '', endCidade: '', endEstado: '',
     repNome: '', repRG: '', repCPF: '', repEstadoCivil: '', repEmail: '',
     testNome: '', testCPF: '', testEmail: '',
@@ -63,7 +63,6 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
     setFieldErrors(prev => { const n = { ...prev }; delete n[k]; return n; });
   };
 
-  // Busca CEP
   async function buscarCep(cep: string) {
     const clean = cep.replace(/\D/g, '');
     if (clean.length !== 8) return;
@@ -100,6 +99,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
           companySlug:          slug,
           razaoSocial:          f.razaoSocial,
           cnpj:                 f.cnpj,
+          aniversario:          f.aniversario,
           endCep:               f.endCep,
           endRua:               f.endRua,
           endNumero:            f.endNumero,
@@ -132,21 +132,16 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
 
       const d = await r.json();
 
-    if (r.ok) {
-      setTracking(d.trackingNumber); 
-      setDone(true);
-    } else if (r.status === 400 && d.details) {
-        // Mapeia erros do Zod para campos
+      if (r.ok) {
+        setTracking(d.trackingNumber);
+        setDone(true);
+      } else if (r.status === 400 && d.details) {
         const errs: FieldErrors = {};
-        const zodToField: Record<string, string> = {
-          razaoSocial: 'razaoSocial', repNome: 'repNome', repEmail: 'repEmail',
-        };
         d.details.forEach((err: any) => {
           const field = err.path?.[0];
           if (field) errs[field] = err.message;
         });
         setFieldErrors(errs);
-        // Scrolla para o primeiro erro
         const firstKey = Object.keys(errs)[0];
         if (firstKey) setTimeout(() => scrollToField(firstKey), 100);
         setError('Corrija os campos destacados em vermelho.');
@@ -177,10 +172,6 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
         </div>
         <h2 className="text-2xl font-bold text-gray-800">Sucesso!</h2>
         <p className="text-gray-500 mt-2 text-sm">A sua minuta foi recebida pela equipe ALMAH.</p>
-        <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-          <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Identificador do Contrato</p>
-          <p className="text-xl font-mono font-bold text-[#1A6B4A]">{tracking}</p>
-        </div>
       </div>
     </div>
   );
@@ -216,7 +207,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
                 ? <InputMask mask="99.999.999/9999-99" className={I} placeholder="00.000.000/0001-00" value={f.cnpj} onChange={set('cnpj')} />
                 : <input className={I} placeholder="00.000.000/0001-00" />}
             </div>
-            <div />
+            <div>
+              <label className={L}>Aniversário da Empresa</label>
+              <input type="date" className={I} value={f.aniversario} onChange={set('aniversario')} />
+              <p className={HELP}>Data de fundação ou aniversário do cliente.</p>
+            </div>
 
             {/* Endereço separado */}
             <div>

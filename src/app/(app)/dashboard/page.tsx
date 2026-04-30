@@ -66,6 +66,13 @@ export default async function DashboardPage({ searchParams }: Props) {
   const overdueRevenue = txOverdue.reduce((s, t) => s + t.amount, 0);
   const inadRevenue    = defaulters.reduce((s, c) => s + c.netRevenue, 0);
 
+   // ── CONTRATOS ENCERRANDO ─────────────────────────────────────────────────
+  const encerrandoBreve = active.filter(c => {
+    if (!c.isRecurring || !c.totalInstallments || c.totalInstallments === 0) return false;
+    const restantes = c.totalInstallments - c.currentInstallment;
+    return restantes >= 0 && restantes <= 2;
+  });
+
   // ── CONCENTRAÇÃO ────────────────────────────────────────────────────────
   const sorted         = [...active].sort((a, b) => b.netRevenue - a.netRevenue);
   const biggestClient  = sorted[0];
@@ -385,6 +392,52 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <div className={`inline-flex px-2 py-0.5 rounded-full text-[9.5px] font-semibold ${marginBg(marginPct)} ${marginColor(marginPct)}`}>
                       {marginPct.toFixed(1)}%
                     </div>
+                  </td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* ── CONTRATOS ENCERRANDO ── */}
+      {encerrandoBreve.length > 0 && (
+        <Card
+          title="⚠️ Contratos encerrando em breve"
+          subtitle="Clientes com 2 ou menos parcelas restantes — considere renovar antes do vencimento">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ minWidth: 400 }}>
+              <thead>
+                <tr>
+                  {['Cliente','Parcela atual','Parcelas restantes','Receita/mês','Vencimento'].map(h => (
+                    <th key={h} className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {encerrandoBreve.map(c => {
+                  const restantes = c.totalInstallments - c.currentInstallment;
+                  return (
+                    <tr key={c.id} className="border-b border-gray-50 last:border-0 bg-amber-50/30">
+                      <td className="py-2 pr-3 text-xs font-medium text-gray-800">{c.name}</td>
+                      <td className="py-2 pr-3 text-xs text-gray-500">{c.currentInstallment}/{c.totalInstallments}</td>
+                      <td className="py-2 pr-3">
+                        <span className={`text-[9.5px] font-medium px-2 py-0.5 rounded-full ${restantes === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {restantes === 0 ? 'Última parcela' : `${restantes} parcela${restantes > 1 ? 's' : ''}`}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 text-right text-xs font-semibold text-amber-700 tabular-nums">{BRL(c.netRevenue)}</td>
+                      <td className="py-2 text-xs text-gray-500">dia {(c as any).dueDay}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-100 bg-gray-50">
+                  <td colSpan={3} className="py-2 text-xs font-semibold text-gray-600">Receita em risco de encerramento</td>
+                  <td className="py-2 text-right text-xs font-bold text-amber-700 tabular-nums">
+                    {BRL(encerrandoBreve.reduce((s, c) => s + c.netRevenue, 0))}
                   </td>
                   <td/>
                 </tr>

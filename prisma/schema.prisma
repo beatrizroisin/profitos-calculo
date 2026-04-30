@@ -121,6 +121,7 @@ model UserInvite {
 model Client {
   id                      String                   @id @default(cuid())
   orderId                 Int                      @default(autoincrement())
+  aniversario             String?
   companyId               String
   name                    String
   document                String?

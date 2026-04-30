@@ -18,6 +18,7 @@ interface Client {
   projNome?: string; projEmail?: string; projTelefone?: string;
   formaPagamento?: string; regimeTributario?: string;
   tipoProjeto?: string; servicosContratados?: string;
+  aniversario?: string;
 }
 
 const EMPTY: Omit<Client, 'id'> = {
@@ -32,6 +33,7 @@ const EMPTY: Omit<Client, 'id'> = {
   finNome: '', finEmail: '', finTelefone: '',
   projNome: '', projEmail: '', projTelefone: '',
   formaPagamento: 'Boleto', regimeTributario: '', tipoProjeto: '', servicosContratados: '',
+  aniversario: '',
 };
 
 const STATUS_PILL: Record<string, any> = { ACTIVE: 'green', INACTIVE: 'gray', PROSPECT: 'amber', PIPELINE: 'blue', CHURNED: 'red' };
@@ -323,6 +325,10 @@ export default function ClientesPage() {
 
             {showExtra && (
               <div className="grid grid-cols-2 gap-3 mb-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Aniversário da Empresa</label>
+                  <input type="date" className={I} value={form.aniversario||''} onChange={e => F('aniversario', e.target.value)} />
+                </div>
 
                 <SecLabel t="Endereço" />
                 <div>
