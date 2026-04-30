@@ -233,10 +233,12 @@ function openEdit(c: Collaborator) {
   const lbl = "block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5";
 
   // ── Detail view ─────────────────────────────────────────────────────────────
+// ── Detail view ─────────────────────────────────────────────────────────────
   const viewColab = viewId ? colabs.find(c=>c.id===viewId) : null;
   if (viewColab) {
     const oc = viewColab.occupancyPct>95?'text-red-600':viewColab.occupancyPct>75?'text-amber-600':'text-green-700';
     const bc = viewColab.occupancyPct>95?'bg-red-500':viewColab.occupancyPct>75?'bg-amber-500':'bg-[#1A6B4A]';
+    const d = viewColab as any;
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
@@ -266,7 +268,7 @@ function openEdit(c: Collaborator) {
                 {!viewColab.isActive && <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full">Inativo</span>}
               </div>
               <p className="text-sm text-gray-500 mt-0.5">{viewColab.position}</p>
-              {(viewColab as any).email && <p className="text-xs text-gray-400 mt-0.5">{(viewColab as any).email}</p>}
+              {d.email && <p className="text-xs text-gray-400 mt-0.5">{d.email}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -282,7 +284,6 @@ function openEdit(c: Collaborator) {
               </div>
             ))}
           </div>
-          {/* Occupation bar */}
           <div className="mt-4">
             <div className="flex justify-between text-xs mb-1.5">
               <span className="text-gray-500">Capacidade utilizada</span>
@@ -296,17 +297,40 @@ function openEdit(c: Collaborator) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Contract info */}
+
+          {/* Identificação */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5">
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Informações contratuais</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Identificação</h3>
             <dl className="space-y-2.5">
               {[
-                ['Tipo de contrato', viewColab.type==='PJ'?'Pessoa Jurídica (PJ)':'CLT'],
-                ['CPF/Documento', (viewColab as any).document || '—'],
-                ['Telefone', (viewColab as any).phone || '—'],
-                ['Data de entrada', fmt((viewColab as any).startDate)],
-                ['Data de saída', fmt((viewColab as any).endDate)],
-                ['Horas disponíveis', viewColab.hoursPerMonth+'h/mês'],
+                ['Nome completo',    viewColab.name],
+                ['Cargo / função',   viewColab.position],
+                ['CPF',              d.document || '—'],
+                ['RG',               d.rg || '—'],
+                ['E-mail',           d.email || '—'],
+                ['Telefone',         d.phone || '—'],
+                ['Razão Social (PJ)', d.razaoSocial || '—'],
+                ['CNPJ (PJ)',        d.cnpj || '—'],
+              ].map(([l,v])=>(
+                <div key={l} className="flex justify-between text-sm">
+                  <dt className="text-gray-500">{l}</dt>
+                  <dd className="font-medium text-gray-800 text-right max-w-[60%]">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {/* Contrato e remuneração */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Contrato e remuneração</h3>
+            <dl className="space-y-2.5">
+              {[
+                ['Tipo de vínculo',       viewColab.type === 'PJ' ? 'Pessoa Jurídica (PJ)' : 'CLT'],
+                ['Honorário / salário',   BRL(viewColab.salary) + '/mês'],
+                ['Custo/hora',            BRL(viewColab.costPerHour) + '/h'],
+                ['Horas disponíveis',     viewColab.hoursPerMonth + 'h/mês'],
+                ['Data de entrada',       fmt(d.startDate)],
+                ['Data de saída',         fmt(d.endDate)],
               ].map(([l,v])=>(
                 <div key={l} className="flex justify-between text-sm">
                   <dt className="text-gray-500">{l}</dt>
@@ -316,17 +340,17 @@ function openEdit(c: Collaborator) {
             </dl>
           </div>
 
-          {/* Payment info */}
+          {/* Dados de pagamento */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Dados de pagamento</h3>
             <dl className="space-y-2.5">
               {[
-                ['Método', (viewColab as any).paymentMethod || '—'],
-                ['Dia de pagamento', (viewColab as any).paymentDay ? `Dia ${(viewColab as any).paymentDay}` : '—'],
-                ['Chave PIX', (viewColab as any).pixKey || '—'],
-                ['Banco', (viewColab as any).bankName || '—'],
-                ['Agência', (viewColab as any).bankAgency || '—'],
-                ['Conta', (viewColab as any).bankAccount ? `${(viewColab as any).bankAccount} (${(viewColab as any).bankAccountType||'—'})` : '—'],
+                ['Método',          d.paymentMethod || '—'],
+                ['Dia de pagamento', d.paymentDay ? `Dia ${d.paymentDay}` : '—'],
+                ['Chave PIX',       d.pixKey || '—'],
+                ['Banco',           d.bankName || '—'],
+                ['Agência',         d.bankAgency || '—'],
+                ['Conta',           d.bankAccount ? `${d.bankAccount} (${d.bankAccountType || '—'})` : '—'],
               ].map(([l,v])=>(
                 <div key={l} className="flex justify-between text-sm">
                   <dt className="text-gray-500">{l}</dt>
@@ -336,19 +360,22 @@ function openEdit(c: Collaborator) {
             </dl>
           </div>
 
-          {/* Personal info */}
+          {/* Informações pessoais */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Informações pessoais</h3>
             <dl className="space-y-2.5">
               {[
-                ['Data de nascimento', fmt((viewColab as any).birthDate)],
-                ['Endereço', (viewColab as any).address || '—'],
-                ['Contato de emergência', (viewColab as any).emergencyContact || '—'],
-                ['Tel. emergência', (viewColab as any).emergencyPhone || '—'],
+                ['Data de nascimento',    fmt(d.birthDate)],
+                ['Estado civil',          d.estadoCivil || '—'],
+                ['Instagram',             d.instagram || '—'],
+                ['Nível de experiência',  d.nivelExperiencia || '—'],
+                ['Endereço',              d.address || '—'],
+                ['Contato de emergência', d.emergencyContact || '—'],
+                ['Tel. emergência',       d.emergencyPhone || '—'],
               ].map(([l,v])=>(
                 <div key={l} className="flex justify-between text-sm">
                   <dt className="text-gray-500">{l}</dt>
-                  <dd className="font-medium text-gray-800 text-right max-w-[60%] text-right">{v}</dd>
+                  <dd className="font-medium text-gray-800 text-right max-w-[60%]">{v}</dd>
                 </div>
               ))}
               {viewColab.notes && (
@@ -360,8 +387,8 @@ function openEdit(c: Collaborator) {
             </dl>
           </div>
 
-          {/* Allocations */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5">
+          {/* Projetos alocados */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 md:col-span-2">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">
               Projetos alocados ({viewColab.allocations.length})
             </h3>
@@ -381,6 +408,7 @@ function openEdit(c: Collaborator) {
               </div>
             )}
           </div>
+
         </div>
       </div>
     );
