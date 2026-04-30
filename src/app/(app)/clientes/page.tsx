@@ -326,7 +326,7 @@ export default function ClientesPage() {
             {showExtra && (
               <div className="grid grid-cols-2 gap-3 mb-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Aniversário da Empresa</label>
+                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Aniversário do Representante Legal</label>
                   <input type="date" className={I} value={form.aniversario||''} onChange={e => F('aniversario', e.target.value)} />
                 </div>
 

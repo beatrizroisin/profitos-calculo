@@ -207,11 +207,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
                 ? <InputMask mask="99.999.999/9999-99" className={I} placeholder="00.000.000/0001-00" value={f.cnpj} onChange={set('cnpj')} />
                 : <input className={I} placeholder="00.000.000/0001-00" />}
             </div>
-            <div>
-              <label className={L}>Aniversário da Empresa</label>
-              <input type="date" className={I} value={f.aniversario} onChange={set('aniversario')} />
-              <p className={HELP}>Data de fundação ou aniversário do cliente.</p>
-            </div>
+
 
             {/* Endereço separado */}
             <div>
@@ -252,6 +248,11 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
               {fieldErrors.repNome && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.repNome}</p>}
               <p className={HELP}>Pessoa que assinará digitalmente ou fisicamente o documento.</p>
             </div>
+            <div>
+                <label className={L}>Aniversário do Representante Legal</label>
+                <input type="date" className={I} value={f.aniversario} onChange={set('aniversario')} />
+                <p className={HELP}>Data de nascimento do representante legal.</p>
+              </div>
             <div>
               <label className={L}>RG</label>
               <input className={I} placeholder="00.000.000-0" value={f.repRG} onChange={set('repRG')} />
