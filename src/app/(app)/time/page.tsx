@@ -293,8 +293,26 @@ export default function TimePage() {
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-3 mb-4">
-                <div><label className={lbl}>% do tempo</label><input type="number" min="0" max="100" step="5" className={inp} value={aForm.allocationPct} onChange={e=>setAForm(f=>({...f,allocationPct:e.target.value}))} placeholder="ex: 30"/><p className="text-[9.5px] text-gray-400 mt-1">Deixe vazio para usar horas</p></div>
-                <div><label className={lbl}>Horas/mês</label><input type="number" min="0" step="4" className={inp} value={aForm.allocationHours} onChange={e=>setAForm(f=>({...f,allocationHours:e.target.value}))} placeholder="ex: 40"/><p className="text-[9.5px] text-gray-400 mt-1">Deixe vazio para usar %</p></div>
+                <div><label className={lbl}>% do tempo</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  max="100" 
+                  className={inp} 
+                  value={aForm.allocationPct} 
+                  onChange={e => setAForm(f => ({ ...f, allocationPct: e.target.value }))} 
+                  placeholder="ex: 32" 
+                /><p className="text-[9.5px] text-gray-400 mt-1">Deixe vazio para usar horas</p></div>
+                <div><label className={lbl}>Horas/mês</label>
+              <input 
+                type="number" 
+                min="0" 
+                step="any" 
+                className={inp} 
+                value={aForm.allocationHours} 
+                onChange={e => setAForm(f => ({ ...f, allocationHours: e.target.value }))} 
+                placeholder="ex: 42" 
+              /><p className="text-[9.5px] text-gray-400 mt-1">Deixe vazio para usar %</p></div>
                 <div>
                   <label className={lbl}>Custo calculado</label>
                   <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm font-medium text-blue-800 tabular-nums">

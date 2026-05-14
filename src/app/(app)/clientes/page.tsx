@@ -289,23 +289,33 @@ if (res.ok) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Data de início</label>
-                <input type="date" className={I} value={form.startDate} onChange={e => F('startDate', e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nível de risco</label>
-                <select className={I} value={form.riskLevel} onChange={e => F('riskLevel', e.target.value)}>
-                  <option value="LOW">Baixo</option><option value="MEDIUM">Médio</option>
-                  <option value="HIGH">Alto</option><option value="CRITICAL">Crítico</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Observações</label>
-                <input className={I} placeholder="Notas internas..." value={form.notes||''} onChange={e => F('notes', e.target.value)} />
-              </div>
-            </div>
+{/* Row 3 — contrato & Observações */}
+<div className="grid grid-cols-3 gap-3 mb-4">
+  <div>
+    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Data de início</label>
+    <input type="date" className={I} value={form.startDate} onChange={e => F('startDate', e.target.value)} />
+  </div>
+  <div>
+    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nível de risco</label>
+    <select className={I} value={form.riskLevel} onChange={e => F('riskLevel', e.target.value)}>
+      <option value="LOW">Baixo</option>
+      <option value="MEDIUM">Médio</option>
+      <option value="HIGH">Alto</option>
+      <option value="CRITICAL">Crítico</option>
+    </select>
+  </div>
+  
+  {/* Campo de Observações ocupando a linha de baixo sozinha e com área de texto maior */}
+  <div className="col-span-full mt-2">
+    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Observações</label>
+    <textarea 
+      className={`${I} min-h-[100px] resize-y`} 
+      placeholder="Notas internas detalhadas..." 
+      value={form.notes || ''} 
+      onChange={e => F('notes', e.target.value)}
+    />
+  </div>
+</div>
 
             {/* Preview financeira */}
             {form.grossRevenue > 0 && (
