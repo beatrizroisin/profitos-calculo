@@ -8,22 +8,22 @@ interface Cat { id:string; name:string; }
 
 const STATUS_PILL: Record<string,any> = { PENDING:'amber', PAID:'green', OVERDUE:'red', CANCELLED:'gray' };
 const STATUS_LABEL: Record<string,string> = { PENDING:'Pendente', PAID:'Pago', OVERDUE:'Vencido', CANCELLED:'Cancelado' };
-
 const EMPTY = { description:'', amount:'', grossAmount:'', taxRate:'', dueDate: new Date().toISOString().slice(0,10), paidAt:'', isRecurring:false, status:'PENDING', categoryId:'', notes:'' };
 
 export default function PagarPage() {
-  const [txs, setTxs]       = useState<Tx[]>([]);
-  const [cats, setCats]      = useState<Cat[]>([]);
-  const [totals, setTotals]  = useState({ totalExpense:0 });
-  const [loading, setLoading]= useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId]  = useState<string|null>(null);
-  const [form, setForm]      = useState({ ...EMPTY });
-  const [saving, setSaving]  = useState(false);
-  const [saved, setSaved]    = useState('');
-  const [error, setError]    = useState('');
-  const [search, setSearch]  = useState('');
-  const [statusF, setStatusF]= useState('');
+  const [txs, setTxs]         = useState<Tx[]>([]);
+  const [cats, setCats]        = useState<Cat[]>([]);
+  const [commTotal, setCommTotal] = useState(0);
+  const [totals, setTotals]    = useState({ totalExpense:0 });
+  const [loading, setLoading]  = useState(true);
+  const [showForm, setShowForm]= useState(false);
+  const [editId, setEditId]    = useState<string|null>(null);
+  const [form, setForm]        = useState({ ...EMPTY });
+  const [saving, setSaving]    = useState(false);
+  const [saved, setSaved]      = useState('');
+  const [error, setError]      = useState('');
+  const [search, setSearch]    = useState('');
+  const [statusF, setStatusF]  = useState('');
 
   useEffect(() => { fetchAll(); }, [search, statusF]);
 
@@ -32,11 +32,21 @@ export default function PagarPage() {
     const p = new URLSearchParams({ type: 'EXPENSE' });
     if (search)  p.set('search', search);
     if (statusF) p.set('status', statusF);
-    const res = await fetch(`/api/transactions?${p}`);
-    if (res.ok) {
-      const d = await res.json();
+    const [txRes, partRes] = await Promise.all([
+      fetch(`/api/transactions?${p}`),
+      fetch('/api/partners'),
+    ]);
+    if (txRes.ok) {
+      const d = await txRes.json();
       setTxs(d.transactions || []);
       setTotals({ totalExpense: d.totalExpense || 0 });
+    }
+    if (partRes.ok) {
+      const partners = await partRes.json();
+      const total = partners.filter((p: any) => p.isActive).reduce((sum: number, p: any) =>
+        sum + p.commissions.reduce((s: number, c: any) => s + (c.client.netRevenue * c.pct / 100), 0), 0
+      );
+      setCommTotal(total);
     }
     setLoading(false);
   }
@@ -96,6 +106,17 @@ export default function PagarPage() {
     setSaved('Marcado como pago.'); setTimeout(()=>setSaved(''),2500); fetchAll();
   }
 
+  async function resetMonth() {
+    if (!confirm('Zerar todos os pagamentos do mês? Eles voltarão para Pendente.')) return;
+    const paidTxs = txs.filter(t => t.status === 'PAID');
+    await Promise.all(paidTxs.map(t =>
+      fetch(`/api/transactions/${t.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'PENDING', paidAt: null }) })
+    ));
+    setSaved(`${paidTxs.length} lançamento(s) resetados para Pendente.`);
+    setTimeout(()=>setSaved(''),3000);
+    fetchAll();
+  }
+
   async function deleteTx(id: string) {
     if (!confirm('Excluir este lançamento?')) return;
     await fetch(`/api/transactions/${id}`, { method:'DELETE' });
@@ -106,16 +127,42 @@ export default function PagarPage() {
   const paid    = txs.filter(t=>t.status==='PAID').reduce((s,t)=>s+t.amount,0);
   const overdue = txs.filter(t=>t.status==='OVERDUE');
   const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:border-[#1A6B4A]";
+  const now = new Date();
+  const monthName = now.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1><p className="text-sm text-gray-400 mt-0.5">{txs.length} lançamentos</p></div>
-        {!showForm && <Button variant="primary" onClick={openNew}>+ Novo lançamento</Button>}
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{txs.length} lançamentos · {monthName}</p>
+        </div>
+        {!showForm && (
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={resetMonth}>↺ Resetar mês</Button>
+            <Button variant="primary" onClick={openNew}>+ Novo lançamento</Button>
+          </div>
+        )}
       </div>
 
       {saved && <Alert variant="ok">{saved}</Alert>}
       {overdue.length>0 && <Alert variant="danger"><strong>{overdue.length} lançamento(s) vencidos</strong> — {BRL(overdue.reduce((s,t)=>s+t.amount,0))} em atraso.</Alert>}
+
+      {/* Comissões do mês */}
+      {commTotal > 0 && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"/>
+            <p className="text-xs text-amber-800">
+              <strong>Comissões a pagar este mês:</strong>{' '}
+              <span className="font-semibold">{BRL(commTotal)}</span> para parceiros comissionados.
+            </p>
+          </div>
+          <a href="/parceiros" className="px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors">
+            Ver parceiros →
+          </a>
+        </div>
+      )}
 
       {showForm && (
         <Card title={editId ? 'Editar lançamento' : 'Novo lançamento a pagar'}>
@@ -158,9 +205,9 @@ export default function PagarPage() {
 
       <Grid4>
         <KPICard label="Total a pagar" value={BRL(totals.totalExpense)} sub={`${txs.length} lançamentos`} color="red" accentColor="#DC3545" />
-        <KPICard label="Pendente" value={BRL(pending)} sub="aguardando pagamento" color="amber" />
+        <KPICard label="Pendente" value={BRL(pending + commTotal)} sub={`inclui ${BRL(commTotal)} em comissões`} color="amber" />
         <KPICard label="Pago" value={BRL(paid)} sub="lançamentos quitados" color="green" />
-        <KPICard label="Vencidos" value={String(overdue.length)} sub={overdue.length>0?BRL(overdue.reduce((s,t)=>s+t.amount,0)):'nenhum vencido'} color={overdue.length>0?'red':'default'} />
+        <KPICard label="Comissões parceiros" value={BRL(commTotal)} sub="mês vigente" color="amber" accentColor="#E67E22" />
       </Grid4>
 
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">

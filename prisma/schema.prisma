@@ -32,7 +32,7 @@ model Company {
   collaboratorAllocations CollaboratorAllocation[]
   runRunConfig            RunRunConfig?
   settings                CompanySettings?
-
+  partners                Partner[]
   @@map("companies")
 }
 
@@ -173,6 +173,7 @@ model Client {
   company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   transactions            Transaction[]            @relation("ClientTransactions")
   collaboratorAllocations CollaboratorAllocation[]
+  partnerCommissions      PartnerCommission[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -513,6 +514,47 @@ model RunRunTimeEntry {
   @@index([collaboratorId])
   @@index([dateWorked])
   @@map("runrun_time_entries")
+}
+
+// ─── PARCEIROS COMISSIONADOS ──────────────────────────────────────────────────
+
+model Partner {
+  id               String             @id @default(cuid())
+  companyId        String
+  name             String
+  email            String?
+  phone            String?
+  document         String?
+  pixKey           String?
+  bankName         String?
+  bankAgency       String?
+  bankAccount      String?
+  paymentDay       Int?
+  notes            String?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  commissions      PartnerCommission[]
+
+  @@index([companyId])
+  @@map("partners")
+}
+
+model PartnerCommission {
+  id          String   @id @default(cuid())
+  companyId   String
+  partnerId   String
+  clientId    String
+  pct         Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, clientId])
+  @@index([companyId])
+  @@map("partner_commissions")
 }
 
 model VerificationToken {
