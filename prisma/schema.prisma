@@ -33,6 +33,7 @@ model Company {
   runRunConfig            RunRunConfig?
   settings                CompanySettings?
   partners                Partner[]
+  contaAzulConfig         ContaAzulConfig?
   @@map("companies")
 }
 
@@ -564,4 +565,45 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// ─── CONTA AZUL INTEGRATION ──────────────────────────────────────────────────
+
+model ContaAzulConfig {
+  id            String    @id @default(cuid())
+  companyId     String    @unique
+  accessToken   String    @db.Text
+  refreshToken  String    @db.Text
+  expiresAt     DateTime
+  lastSyncAt    DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("contaazul_configs")
+}
+
+model ContaAzulBill {
+  id              String   @id @default(cuid())
+  companyId       String
+  externalId      String
+  description     String
+  amount          Float
+  amountPaid      Float?
+  dueDate         DateTime
+  paymentDate     DateTime?
+  status          String
+  isRecurring     Boolean  @default(false)
+  categoryName    String?
+  supplierName    String?
+  notes           String?
+  monthRef        String
+  syncedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, externalId])
+  @@index([companyId])
+  @@index([companyId, monthRef])
+  @@map("contaazul_bills")
 }
