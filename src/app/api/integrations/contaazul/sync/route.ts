@@ -55,35 +55,44 @@ async function fetchBillsForMonth(
   startDate: string,
   endDate: string
 ): Promise<any[]> {
-  // Endpoint correto conforme documentação
   const params = new URLSearchParams({
-    data_vencimento_inicio: startDate,
-    data_vencimento_fim:    endDate,
-    page:  '0',
-    size:  '200',
+    data_vencimento_de:  startDate,
+    data_vencimento_ate: endDate,
+    pagina:              '0',
+    quantidade:          '200',
   });
 
-  const res = await fetch(
-    `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type':  'application/json',
-      },
-    }
-  );
+  const url = `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`;
+  console.log('[contaazul sync] GET', url);
+
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type':  'application/json',
+    },
+  });
+
+  console.log('[contaazul sync] status:', res.status);
+  const text = await res.text();
+  console.log('[contaazul sync] response:', text.slice(0, 1000));
 
   if (!res.ok) {
-    console.error('[contaazul sync] fetchBills error:', res.status, await res.text());
+    console.error('[contaazul sync] fetchBills error:', res.status, text);
     return [];
   }
 
-  const data = await res.json();
-  // A API pode retornar array direto ou objeto com items/content
-  if (Array.isArray(data)) return data;
-  if (data.content) return data.content;
-  if (data.items)   return data.items;
-  return [];
+  try {
+    const data = JSON.parse(text);
+    console.log('[contaazul sync] parsed type:', Array.isArray(data) ? 'array' : typeof data, 'keys:', Object.keys(data));
+    if (Array.isArray(data)) return data;
+    if (data.content) return data.content;
+    if (data.items)   return data.items;
+    if (data.data)    return data.data;
+    return [];
+  } catch (e) {
+    console.error('[contaazul sync] parse error:', e);
+    return [];
+  }
 }
 
 export async function POST(req: NextRequest) {
