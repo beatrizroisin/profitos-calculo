@@ -5,11 +5,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.redirect('/login');
+  if (!session) return NextResponse.redirect(new URL('/login', req.url));
   const companyId = (session.user as any).companyId;
 
   const code = req.nextUrl.searchParams.get('code');
-  if (!code) return NextResponse.redirect('/configuracoes?error=no_code');
+  if (!code) return NextResponse.redirect(new URL('/configuracoes?error=no_code', req.url));
 
   try {
     const clientId     = process.env.CONTAAZUL_CLIENT_ID!;
@@ -34,10 +34,10 @@ export async function GET(req: NextRequest) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('[contaazul callback] token error:', err);
-      return NextResponse.redirect('/configuracoes?error=token_failed');
+      return NextResponse.redirect(new URL('/configuracoes?error=token_failed', req.url));
     }
 
-    const tokens = await tokenRes.json();
+    const tokens    = await tokenRes.json();
     const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000);
 
     await prisma.contaAzulConfig.upsert({
@@ -46,16 +46,17 @@ export async function GET(req: NextRequest) {
       create: { companyId, accessToken: tokens.access_token, refreshToken: tokens.refresh_token, expiresAt, isActive: true },
     });
 
-    // Faz sync imediato após conectar
-    await fetch(`${process.env.NEXTAUTH_URL}/api/integrations/contaazul/sync`, {
+    // Sync imediato após conectar
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://profitos-calculo.vercel.app';
+    await fetch(`${baseUrl}/api/integrations/contaazul/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId }),
     });
 
-    return NextResponse.redirect('/configuracoes?success=contaazul_connected');
+    return NextResponse.redirect(new URL('/pagar?success=contaazul_connected', req.url));
   } catch (err: any) {
     console.error('[contaazul callback]', err?.message);
-    return NextResponse.redirect('/configuracoes?error=callback_failed');
+    return NextResponse.redirect(new URL('/configuracoes?error=callback_failed', req.url));
   }
 }

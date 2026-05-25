@@ -13,9 +13,9 @@ export async function GET(req: NextRequest) {
     response_type: 'code',
     client_id:     clientId,
     redirect_uri:  redirectUri,
-    scope:         'sales',
   });
 
+  // URL correta do Conta Azul
   const authUrl = `https://api.contaazul.com/auth/oauth/v2/authorize?${params}`;
   return NextResponse.redirect(authUrl);
 }
