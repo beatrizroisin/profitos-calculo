@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
     client_id:     clientId,
     redirect_uri:  redirectUri,
     state:         'profitos',
+    scope:         'openid profile aws.cognito.signin.user.admin',
   });
 
-  const authUrl = `https://auth.contaazul.com/oauth2/authorize?${params}`;
+  const authUrl = `https://auth.contaazul.com/login?${params}`;
   return NextResponse.redirect(authUrl);
 }
