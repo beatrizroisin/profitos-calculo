@@ -10,12 +10,13 @@ export async function GET(req: NextRequest) {
   const redirectUri = process.env.CONTAAZUL_REDIRECT_URI!;
 
   const params = new URLSearchParams({
-    response_type: 'code',
-    client_id:     clientId,
     redirect_uri:  redirectUri,
+    client_id:     clientId,
+    scope:         'sales',
+    state:         'profitos',
   });
 
-  // URL correta do Conta Azul
-  const authUrl = `https://api.contaazul.com/auth/oauth/v2/authorize?${params}`;
+  // URL correta sem /v2
+  const authUrl = `https://api.contaazul.com/auth/authorize?${params}`;
   return NextResponse.redirect(authUrl);
 }

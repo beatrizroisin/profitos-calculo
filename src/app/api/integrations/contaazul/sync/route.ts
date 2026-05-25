@@ -17,7 +17,7 @@ async function getValidToken(companyId: string): Promise<string | null> {
     const clientSecret = process.env.CONTAAZUL_CLIENT_SECRET!;
     const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-    const res = await fetch('https://api.contaazul.com/auth/oauth/v2/token', {
+    const res = await fetch('https://auth.contaazul.com/oauth2/token', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,

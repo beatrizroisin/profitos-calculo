@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-    const tokenRes = await fetch('https://api.contaazul.com/auth/oauth/v2/token', {
+    const tokenRes = await fetch('https://auth.contaazul.com/oauth2/token', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
