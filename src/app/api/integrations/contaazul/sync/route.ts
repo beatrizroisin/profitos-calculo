@@ -11,7 +11,6 @@ async function getValidToken(companyId: string): Promise<string | null> {
 
   if (config.expiresAt > new Date()) return config.accessToken;
 
-  // Renova token
   try {
     const clientId     = process.env.CONTAAZUL_CLIENT_ID!;
     const clientSecret = process.env.CONTAAZUL_CLIENT_SECRET!;
@@ -68,13 +67,12 @@ async function fetchBillsForMonth(
   const res = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type':  'application/json',
     },
   });
 
   console.log('[contaazul sync] status:', res.status);
   const text = await res.text();
-  console.log('[contaazul sync] response:', text.slice(0, 1000));
+  console.log('[contaazul sync] response:', text.slice(0, 500));
 
   if (!res.ok) {
     console.error('[contaazul sync] fetchBills error:', res.status, text);
@@ -83,11 +81,12 @@ async function fetchBillsForMonth(
 
   try {
     const data = JSON.parse(text);
-    console.log('[contaazul sync] parsed type:', Array.isArray(data) ? 'array' : typeof data, 'keys:', Object.keys(data));
-    if (Array.isArray(data)) return data;
-    if (data.content) return data.content;
-    if (data.items)   return data.items;
-    if (data.data)    return data.data;
+    console.log('[contaazul sync] total:', data.itens_totais, 'itens:', data.itens?.length);
+    if (Array.isArray(data))  return data;
+    if (data.itens)           return data.itens;
+    if (data.content)         return data.content;
+    if (data.items)           return data.items;
+    if (data.data)            return data.data;
     return [];
   } catch (e) {
     console.error('[contaazul sync] parse error:', e);
@@ -117,33 +116,33 @@ export async function POST(req: NextRequest) {
     const now    = new Date();
     const synced: string[] = [];
 
-    // Sincroniza 3 meses anteriores + atual + 1 futuro
     for (let offset = -3; offset <= 1; offset++) {
-      const d       = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-      const year    = d.getFullYear();
-      const month   = d.getMonth();
-      const start   = new Date(year, month, 1).toISOString().slice(0, 10);
-      const end     = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+      const d        = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const year     = d.getFullYear();
+      const month    = d.getMonth();
+      const start    = new Date(year, month, 1).toISOString().slice(0, 10);
+      const end      = new Date(year, month + 1, 0).toISOString().slice(0, 10);
       const monthRef = `${year}-${String(month + 1).padStart(2, '0')}`;
 
       const bills = await fetchBillsForMonth(accessToken, start, end);
 
       for (const bill of bills) {
-        // Campos conforme API v2 do Conta Azul
-        const amount     = parseFloat(bill.valor ?? bill.value ?? 0);
-        const amountPaid = bill.valor_pago != null ? parseFloat(bill.valor_pago) : null;
-        const dueDate    = new Date(bill.data_vencimento ?? bill.due_date ?? start);
-        const payDate    = bill.data_pagamento ? new Date(bill.data_pagamento) : null;
+        const amount      = parseFloat(bill.total ?? 0);
+        const amountPaid  = parseFloat(bill.pago ?? 0);
+        const dueDate     = new Date(bill.data_vencimento);
+        const payDate     = null;
 
-        const rawStatus  = (bill.status ?? '').toUpperCase();
-        const status     =
-          rawStatus === 'PAGO'      || rawStatus === 'PAID'      ? 'PAID'
-          : rawStatus === 'VENCIDO' || rawStatus === 'OVERDUE'   ? 'OVERDUE'
-          : rawStatus === 'CANCELADO' || rawStatus === 'CANCELLED' ? 'CANCELLED'
+        const rawStatus = (bill.status ?? '').toUpperCase();
+        const status    =
+          rawStatus === 'ACQUITTED' ? 'PAID'
+          : rawStatus === 'OVERDUE'   ? 'OVERDUE'
+          : rawStatus === 'CANCELLED' ? 'CANCELLED'
           : 'PENDING';
 
-        const externalId  = String(bill.id ?? bill.id_parcela ?? Math.random());
-        const description = bill.descricao ?? bill.description ?? 'Sem descrição';
+        const externalId   = String(bill.id);
+        const description  = bill.descricao ?? 'Sem descrição';
+        const categoryName = bill.categorias?.[0]?.nome ?? null;
+        const supplierName = bill.fornecedor?.nome ?? null;
 
         await prisma.contaAzulBill.upsert({
           where:  { companyId_externalId: { companyId, externalId } },
@@ -154,9 +153,9 @@ export async function POST(req: NextRequest) {
             dueDate,
             paymentDate:  payDate,
             status,
-            categoryName: bill.categoria?.nome ?? bill.category?.name ?? null,
-            supplierName: bill.fornecedor?.nome ?? bill.supplier?.name ?? bill.pessoa?.nome ?? null,
-            notes:        bill.observacao ?? bill.notes ?? null,
+            categoryName,
+            supplierName,
+            notes:        null,
             monthRef,
             updatedAt:    new Date(),
           },
@@ -169,10 +168,10 @@ export async function POST(req: NextRequest) {
             dueDate,
             paymentDate:  payDate,
             status,
-            isRecurring:  !!(bill.recorrencia ?? bill.recurrence),
-            categoryName: bill.categoria?.nome ?? bill.category?.name ?? null,
-            supplierName: bill.fornecedor?.nome ?? bill.supplier?.name ?? bill.pessoa?.nome ?? null,
-            notes:        bill.observacao ?? bill.notes ?? null,
+            isRecurring:  false,
+            categoryName,
+            supplierName,
+            notes:        null,
             monthRef,
           },
         });
