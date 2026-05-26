@@ -59,44 +59,49 @@ async function fetchBillsForMonth(
   startDate: string,
   endDate: string
 ): Promise<any[]> {
-const params = new URLSearchParams({
-  data_vencimento_de:  startDate,
-  data_vencimento_ate: endDate,
-});
+  const allBills: any[] = [];
+  let pagina = 0;
+  const quantidade = 100;
 
-  const url = `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`;
-  console.log('[contaazul sync] GET', url);
+  while (true) {
+    const params = new URLSearchParams({
+      data_vencimento_de:  startDate,
+      data_vencimento_ate: endDate,
+      pagina:              String(pagina),
+      quantidade:          String(quantidade),
+    });
 
-const res = await fetch(url, {
-  headers: {
-    'Authorization': `Bearer ${accessToken}`,
-    'Accept': 'application/json',
-  },
-  redirect: 'follow',
-});
+    const url = `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`;
+    console.log('[contaazul sync] GET', url);
 
-  console.log('[contaazul sync] status:', res.status);
-  const text = await res.text();
-  console.log('[contaazul sync] response:', text.slice(0, 500));
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+      redirect: 'follow',
+    });
 
-  if (!res.ok) {
-    console.error('[contaazul sync] fetchBills error:', res.status, text);
-    return [];
+    console.log('[contaazul sync] status:', res.status);
+
+    if (!res.ok) {
+      console.error('[contaazul sync] error:', res.status);
+      break;
+    }
+
+    const data = await res.json();
+    const itens = data.itens ?? data.content ?? data.items ?? data.data ?? [];
+    
+    allBills.push(...itens);
+    console.log(`[contaazul sync] página ${pagina}: ${itens.length} itens, total acumulado: ${allBills.length}`);
+
+    // Se veio menos que o tamanho da página, acabou
+    if (itens.length < quantidade) break;
+    
+    pagina++;
   }
 
-  try {
-    const data = JSON.parse(text);
-    console.log('[contaazul sync] total:', data.itens_totais, 'itens:', data.itens?.length);
-    if (Array.isArray(data))  return data;
-    if (data.itens)           return data.itens;
-    if (data.content)         return data.content;
-    if (data.items)           return data.items;
-    if (data.data)            return data.data;
-    return [];
-  } catch (e) {
-    console.error('[contaazul sync] parse error:', e);
-    return [];
-  }
+  return allBills;
 }
 
 export async function POST(req: NextRequest) {
