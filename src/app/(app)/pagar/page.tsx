@@ -225,7 +225,10 @@ export default function PagarPage() {
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           {showSupplierDrop && (
-            <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[240px] max-h-[280px] overflow-y-auto">
+           <div 
+                className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[240px] max-h-[280px] overflow-y-auto" 
+                style={{ marginLeft: '-6em' }}
+              >
               <div className="p-2">
                 <button onClick={() => { setSupplierF(''); setShowSupplierDrop(false); }}
                   className={`w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-gray-50 ${!supplierF ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
