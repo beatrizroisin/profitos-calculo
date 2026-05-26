@@ -6,9 +6,6 @@ import { prisma } from '@/lib/prisma';
 const BASE_URL = 'https://api-v2.contaazul.com';
 
 async function getValidToken(companyId: string): Promise<string | null> {
-    const accessToken = await getValidToken(companyId);
-console.log('[contaazul sync] token preview:', accessToken?.slice(0, 50));
-
   const config = await prisma.contaAzulConfig.findUnique({ where: { companyId } });
   if (!config || !config.isActive) return null;
 
@@ -31,7 +28,10 @@ console.log('[contaazul sync] token preview:', accessToken?.slice(0, 50));
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error('[contaazul token] refresh failed:', res.status, await res.text());
+      return null;
+    }
 
     const tokens    = await res.json();
     const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000);
@@ -46,8 +46,10 @@ console.log('[contaazul sync] token preview:', accessToken?.slice(0, 50));
       },
     });
 
+    console.log('[contaazul token] refreshed successfully');
     return tokens.access_token;
-  } catch {
+  } catch (e: any) {
+    console.error('[contaazul token] refresh error:', e?.message);
     return null;
   }
 }
@@ -112,6 +114,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const accessToken = await getValidToken(companyId);
+    console.log('[contaazul sync] token preview:', accessToken?.slice(0, 50));
+
     if (!accessToken) {
       return NextResponse.json({ error: 'Conta Azul não conectada ou token expirado.' }, { status: 400 });
     }
@@ -133,7 +137,6 @@ export async function POST(req: NextRequest) {
         const amount      = parseFloat(bill.total ?? 0);
         const amountPaid  = parseFloat(bill.pago ?? 0);
         const dueDate     = new Date(bill.data_vencimento);
-        const payDate     = null;
 
         const rawStatus = (bill.status ?? '').toUpperCase();
         const status    =
@@ -154,7 +157,7 @@ export async function POST(req: NextRequest) {
             amount,
             amountPaid,
             dueDate,
-            paymentDate:  payDate,
+            paymentDate:  null,
             status,
             categoryName,
             supplierName,
@@ -169,7 +172,7 @@ export async function POST(req: NextRequest) {
             amount,
             amountPaid,
             dueDate,
-            paymentDate:  payDate,
+            paymentDate:  null,
             status,
             isRecurring:  false,
             categoryName,
