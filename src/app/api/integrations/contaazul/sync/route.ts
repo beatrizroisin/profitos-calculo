@@ -59,12 +59,10 @@ async function fetchBillsForMonth(
   startDate: string,
   endDate: string
 ): Promise<any[]> {
-  const params = new URLSearchParams({
-    data_vencimento_de:  startDate,
-    data_vencimento_ate: endDate,
-    pagina:              '0',
-    quantidade:          '200',
-  });
+const params = new URLSearchParams({
+  data_vencimento_de:  startDate,
+  data_vencimento_ate: endDate,
+});
 
   const url = `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`;
   console.log('[contaazul sync] GET', url);
