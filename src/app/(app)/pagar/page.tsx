@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Card, Grid4, KPICard, Alert, Button, Pill } from '@/components/ui';
+import { Alert, Button, Pill } from '@/components/ui';
 import { BRL } from '@/lib/utils';
 
 interface Bill {
@@ -14,24 +14,29 @@ interface Bill {
 
 interface ContaAzulStatus { connected: boolean; lastSyncAt: string | null; }
 
-const STATUS_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', PARTIAL: 'blue', OVERDUE: 'red', CANCELLED: 'gray' };
-const STATUS_LABEL: Record<string, string> = { PENDING: 'Em aberto', PAID: 'Pago', PARTIAL: 'Pago parcial', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' };
+const STATUS_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', PARTIAL: 'blue', CANCELLED: 'gray' };
+const STATUS_LABEL: Record<string, string> = { PENDING: 'Em aberto', PAID: 'Pago', PARTIAL: 'Pago parcial', CANCELLED: 'Cancelado' };
+
+function getToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 export default function PagarPage() {
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = getToday();
 
-  const [year, setYear]         = useState(now.getFullYear());
-  const [month, setMonth]       = useState(now.getMonth() + 1);
-  const [bills, setBills]       = useState<Bill[]>([]);
-  const [suppliers, setSuppliers] = useState<string[]>([]);
-  const [status, setStatus]     = useState<ContaAzulStatus>({ connected: false, lastSyncAt: null });
-  const [loading, setLoading]   = useState(true);
-  const [syncing, setSyncing]   = useState(false);
-  const [saved, setSaved]       = useState('');
-  const [search, setSearch]     = useState('');
-  const [statusF, setStatusF]   = useState('');
-  const [supplierF, setSupplierF] = useState('');
+  const [year, setYear]               = useState(now.getFullYear());
+  const [month, setMonth]             = useState(now.getMonth() + 1);
+  const [bills, setBills]             = useState<Bill[]>([]);
+  const [suppliers, setSuppliers]     = useState<string[]>([]);
+  const [status, setStatus]           = useState<ContaAzulStatus>({ connected: false, lastSyncAt: null });
+  const [loading, setLoading]         = useState(true);
+  const [syncing, setSyncing]         = useState(false);
+  const [saved, setSaved]             = useState('');
+  const [search, setSearch]           = useState('');
+  const [statusF, setStatusF]         = useState('');
+  const [supplierF, setSupplierF]     = useState('');
   const [showSupplierDrop, setShowSupplierDrop] = useState(false);
   const supplierRef = useRef<HTMLDivElement>(null);
 
@@ -61,8 +66,7 @@ export default function PagarPage() {
 
   async function fetchBills() {
     setLoading(true);
-    const params = new URLSearchParams({ monthRef });
-    const res = await fetch(`/api/integrations/contaazul/bills?${params}`);
+    const res = await fetch(`/api/integrations/contaazul/bills?monthRef=${monthRef}`);
     if (res.ok) setBills(await res.json());
     setLoading(false);
   }
@@ -94,34 +98,46 @@ export default function PagarPage() {
 
   // Filtros client-side
   const filtered = bills.filter(b => {
-    const matchS = !search || b.description.toLowerCase().includes(search.toLowerCase()) || (b.supplierName || '').toLowerCase().includes(search.toLowerCase()) || (b.categoryName || '').toLowerCase().includes(search.toLowerCase());
-    const matchF = !statusF || b.status === statusF;
-    const matchSup = !supplierF || b.supplierName === supplierF;
-    return matchS && matchF && matchSup;
+    const matchS   = !search     || b.description.toLowerCase().includes(search.toLowerCase()) || (b.supplierName||'').toLowerCase().includes(search.toLowerCase()) || (b.categoryName||'').toLowerCase().includes(search.toLowerCase());
+    const matchSup = !supplierF  || b.supplierName === supplierF;
+
+    // filtro de status tab
+    let matchF = true;
+    if (statusF === 'OPEN')    matchF = b.status !== 'PAID' && b.status !== 'PARTIAL' && b.status !== 'CANCELLED';
+    else if (statusF === 'PAID')    matchF = b.status === 'PAID' || b.status === 'PARTIAL';
+    else if (statusF === 'OVERDUE') matchF = (b.status !== 'PAID' && b.status !== 'PARTIAL' && b.status !== 'CANCELLED') && b.dueDate.slice(0,10) < todayStr;
+
+    return matchS && matchSup && matchF;
   });
 
-  // KPIs
-  const today    = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
-  const overdue  = filtered.filter(b => b.status === 'OVERDUE');
-  const pending  = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
-  const paid = filtered.filter(b => b.status === 'PAID' || b.status === 'PARTIAL');
-  const total    = filtered.reduce((s, b) => s + b.amount, 0);
+  // KPIs — baseados em data, não em status
+  const emAberto   = filtered.filter(b => b.status !== 'PAID' && b.status !== 'PARTIAL' && b.status !== 'CANCELLED');
+  const vencidos   = emAberto.filter(b => b.dueDate.slice(0,10) < todayStr);
+  const venceHoje  = emAberto.filter(b => b.dueDate.slice(0,10) === todayStr);
+  const aVencer    = emAberto.filter(b => b.dueDate.slice(0,10) > todayStr);
+  const pagos      = filtered.filter(b => b.status === 'PAID' || b.status === 'PARTIAL');
 
-  const emAberto = filtered.filter(b => b.status === 'OVERDUE' || b.status === 'PENDING');
-  const overdueAmount = emAberto.reduce((s, b) => s + b.amount, 0);
-  const todayAmount    = today.reduce((s, b) => s + b.amount, 0);
-  const pendingAmount  = pending.reduce((s, b) => s + b.amount, 0);
-  const paidAmount     = paid.reduce((s, b) => s + (b.amountPaid ?? b.amount), 0);
+  const vencidosAmt  = vencidos.reduce((s, b)  => s + b.amount, 0);
+  const hojeAmt      = venceHoje.reduce((s, b) => s + b.amount, 0);
+  const aVencerAmt   = aVencer.reduce((s, b)   => s + b.amount, 0);
+  const pagosAmt     = pagos.reduce((s, b)     => s + (b.amountPaid ?? b.amount), 0);
+  const totalAmt     = filtered.reduce((s, b)  => s + b.amount, 0);
+
+  // status visual na tabela — derivado de data
+  function getBillStatus(b: Bill): string {
+    if (b.status === 'PAID' || b.status === 'PARTIAL') return b.status;
+    if (b.status === 'CANCELLED') return 'CANCELLED';
+    if (b.dueDate.slice(0,10) < todayStr) return 'OVERDUE';
+    return 'PENDING';
+  }
+
+  const DISPLAY_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', PARTIAL: 'blue', OVERDUE: 'red', CANCELLED: 'gray' };
+  const DISPLAY_LABEL: Record<string, string> = { PENDING: 'Em aberto', PAID: 'Pago', PARTIAL: 'Pago parcial', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' };
 
   if (!loading && !status.connected) {
     return (
       <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Integração com Conta Azul</p>
-          </div>
-        </div>
+        <div><h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1><p className="text-sm text-gray-400 mt-0.5">Integração com Conta Azul</p></div>
         <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
           <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
@@ -131,8 +147,7 @@ export default function PagarPage() {
           </div>
           <h2 className="text-base font-semibold text-gray-800 mb-1">Conecte o Conta Azul</h2>
           <p className="text-sm text-gray-400 mb-6">Sincronize suas contas a pagar automaticamente todos os dias.</p>
-          <a href="/api/integrations/contaazul/auth"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
+          <a href="/api/integrations/contaazul/auth" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
             Conectar Conta Azul →
           </a>
         </div>
@@ -142,15 +157,14 @@ export default function PagarPage() {
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1>
           <p className="text-sm text-gray-400 mt-0.5">
             {filtered.length} lançamentos · {monthName}
             {status.lastSyncAt && (
-              <span className="ml-2 text-[10px] text-gray-300">
-                · sync {new Date(status.lastSyncAt).toLocaleString('pt-BR')}
-              </span>
+              <span className="ml-2 text-[10px] text-gray-300">· sync {new Date(status.lastSyncAt).toLocaleString('pt-BR')}</span>
             )}
           </p>
         </div>
@@ -160,9 +174,9 @@ export default function PagarPage() {
       </div>
 
       {saved && <Alert variant={saved.includes('Erro') ? 'danger' : 'ok'}>{saved}</Alert>}
-      {overdue.length > 0 && (
+      {vencidos.length > 0 && (
         <Alert variant="danger">
-          <strong>{overdue.length} lançamento(s) vencidos</strong> — {BRL(overdueAmount)} em atraso.
+          <strong>{vencidos.length} lançamento(s) vencidos</strong> — {BRL(vencidosAmt)} em atraso.
         </Alert>
       )}
 
@@ -170,11 +184,11 @@ export default function PagarPage() {
       <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex flex-wrap gap-3 items-center">
         {/* Navegação mês */}
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
+          <button onClick={prevMonth} className="text-gray-400 hover:text-gray-700 p-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
           <span className="text-sm font-medium text-gray-700 capitalize min-w-[130px] text-center">{monthName}</span>
-          <button onClick={nextMonth} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
+          <button onClick={nextMonth} className="text-gray-400 hover:text-gray-700 p-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
           </button>
         </div>
@@ -182,16 +196,12 @@ export default function PagarPage() {
         <div className="h-5 w-px bg-gray-200" />
 
         {/* Pesquisa */}
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-          </svg>
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1.5">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input type="text" placeholder="Pesquisar no período selecionado..." value={search}
             onChange={e => setSearch(e.target.value)}
             className="flex-1 text-xs bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none" />
-          {search && (
-            <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500 text-xs">✕</button>
-          )}
+          {search && <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500 text-xs">✕</button>}
         </div>
 
         {/* Filtro Fornecedor */}
@@ -199,14 +209,14 @@ export default function PagarPage() {
           <button onClick={() => setShowSupplierDrop(v => !v)}
             className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs transition-colors ${supplierF ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
-            {supplierF || 'Fornecedor'}
+            {supplierF ? supplierF.slice(0, 20) + (supplierF.length > 20 ? '...' : '') : 'Fornecedor'}
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           {showSupplierDrop && (
-            <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px] max-h-[280px] overflow-y-auto">
+            <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[240px] max-h-[280px] overflow-y-auto">
               <div className="p-2">
                 <button onClick={() => { setSupplierF(''); setShowSupplierDrop(false); }}
                   className={`w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-gray-50 ${!supplierF ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
@@ -215,7 +225,7 @@ export default function PagarPage() {
                 {suppliers.map(s => (
                   <button key={s} onClick={() => { setSupplierF(s); setShowSupplierDrop(false); }}
                     className={`w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-2 ${supplierF === s ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
-                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${supplierF === s ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                    <div className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ${supplierF === s ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
                       {supplierF === s && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>}
                     </div>
                     {s}
@@ -234,34 +244,45 @@ export default function PagarPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Em aberto (R$)</p>
-          <p className="text-xl font-bold text-red-500 tabular-nums mt-0.5">{BRL(overdueAmount)}</p>
+          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Vencidos (R$)</p>
+          <p className="text-xl font-bold text-red-500 tabular-nums mt-0.5">{BRL(vencidosAmt)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{vencidos.length} lançamentos</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Vencem hoje (R$)</p>
-          <p className="text-xl font-bold text-red-400 tabular-nums mt-0.5">{BRL(todayAmount)}</p>
+          <p className="text-[10px] text-orange-400 font-medium uppercase tracking-wide">Vencem hoje (R$)</p>
+          <p className="text-xl font-bold text-orange-400 tabular-nums mt-0.5">{BRL(hojeAmt)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{venceHoje.length} lançamentos</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
           <p className="text-[10px] text-blue-400 font-medium uppercase tracking-wide">A vencer (R$)</p>
-          <p className="text-xl font-bold text-blue-500 tabular-nums mt-0.5">{BRL(pendingAmount)}</p>
+          <p className="text-xl font-bold text-blue-500 tabular-nums mt-0.5">{BRL(aVencerAmt)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{aVencer.length} lançamentos</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
           <p className="text-[10px] text-green-500 font-medium uppercase tracking-wide">Pagos (R$)</p>
-          <p className="text-xl font-bold text-green-600 tabular-nums mt-0.5">{BRL(paidAmount)}</p>
+          <p className="text-xl font-bold text-green-600 tabular-nums mt-0.5">{BRL(pagosAmt)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{pagos.length} lançamentos</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 md:col-span-1 col-span-2">
           <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Total do período (R$)</p>
-          <p className="text-xl font-bold text-blue-600 tabular-nums mt-0.5">{BRL(total)}</p>
+          <p className="text-xl font-bold text-blue-600 tabular-nums mt-0.5">{BRL(totalAmt)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{filtered.length} lançamentos</p>
         </div>
       </div>
 
-      {/* Filtros status */}
+      {/* Tabela */}
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-50 flex gap-3 items-center flex-wrap">
           <div className="flex bg-gray-100 rounded-lg p-0.5">
-            {[['', 'Todos'], ['PENDING', 'Pendentes'], ['PAID', 'Pagos'], ['OVERDUE', 'Vencidos']].map(([v, l]) => (
+            {[
+              ['', 'Todos'],
+              ['OPEN', 'Em aberto'],
+              ['PAID', 'Pagos'],
+              ['OVERDUE', 'Vencidos'],
+            ].map(([v, l]) => (
               <button key={v} onClick={() => setStatusF(v)}
-                className={`px-3 py-1 rounded-md text-[11px] transition-all ${statusF === v ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500'}`}>{l}
+                className={`px-3 py-1 rounded-md text-[11px] transition-all ${statusF === v ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500'}`}>
+                {l}
               </button>
             ))}
           </div>
@@ -287,27 +308,31 @@ export default function PagarPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(b => (
-                  <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50/40 transition-colors ${b.status === 'OVERDUE' ? 'bg-red-50/30' : ''}`}>
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-gray-800 truncate max-w-[200px]">{b.description}</p>
-                      {b.supplierName && <p className="text-[10px] text-gray-400">{b.supplierName}</p>}
-                    </td>
-                    <td className="py-3">{b.categoryName ? <span className="text-xs text-gray-600">{b.categoryName}</span> : <span className="text-[10px] text-gray-300">—</span>}</td>
-                    <td className="py-3 text-gray-500">{new Date(b.dueDate).toLocaleDateString('pt-BR')}</td>
-                    <td className="py-3"><Pill label={b.isRecurring ? 'Recorrente' : 'Eventual'} variant={b.isRecurring ? 'blue' : 'gray'} /></td>
-                    <td className="py-3 text-right font-medium text-red-600 tabular-nums">{BRL(b.amount)}</td>
-                    <td className="py-3"><Pill label={STATUS_LABEL[b.status] || b.status} variant={STATUS_PILL[b.status] || 'gray'} /></td>
-                    <td className="py-3 pr-5 text-gray-400 text-[10px]">
-                      {b.paymentDate ? new Date(b.paymentDate).toLocaleDateString('pt-BR') : '—'}
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map(b => {
+                  const displayStatus = getBillStatus(b);
+                  const isOverdue = displayStatus === 'OVERDUE';
+                  return (
+                    <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50/40 transition-colors ${isOverdue ? 'bg-red-50/30' : ''}`}>
+                      <td className="px-5 py-3">
+                        <p className="font-medium text-gray-800 truncate max-w-[200px]">{b.description}</p>
+                        {b.supplierName && <p className="text-[10px] text-gray-400">{b.supplierName}</p>}
+                      </td>
+                      <td className="py-3">{b.categoryName ? <span className="text-xs text-gray-600">{b.categoryName}</span> : <span className="text-[10px] text-gray-300">—</span>}</td>
+                      <td className="py-3 text-gray-500">{new Date(b.dueDate).toLocaleDateString('pt-BR')}</td>
+                      <td className="py-3"><Pill label={b.isRecurring ? 'Recorrente' : 'Eventual'} variant={b.isRecurring ? 'blue' : 'gray'} /></td>
+                      <td className={`py-3 text-right font-medium tabular-nums ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>{BRL(b.amount)}</td>
+                      <td className="py-3"><Pill label={DISPLAY_LABEL[displayStatus] || displayStatus} variant={DISPLAY_PILL[displayStatus] || 'gray'} /></td>
+                      <td className="py-3 pr-5 text-gray-400 text-[10px]">
+                        {b.paymentDate ? new Date(b.paymentDate).toLocaleDateString('pt-BR') : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-100 bg-gray-50">
                   <td colSpan={4} className="px-5 py-2.5 text-[11px] text-gray-500 font-medium">{filtered.length} lançamentos</td>
-                  <td className="py-2.5 text-right text-[11px] font-medium text-red-600 tabular-nums">{BRL(total)}</td>
+                  <td className="py-2.5 text-right text-[11px] font-medium text-gray-700 tabular-nums">{BRL(totalAmt)}</td>
                   <td colSpan={2}></td>
                 </tr>
               </tfoot>
