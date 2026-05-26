@@ -101,16 +101,17 @@ export default function PagarPage() {
   });
 
   // KPIs
-  const today   = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
-  const overdue = filtered.filter(b => b.status === 'OVERDUE');
-  const pending = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
-  const paid    = filtered.filter(b => b.status === 'PAID');
+  const today    = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
+  const overdue  = filtered.filter(b => b.status === 'OVERDUE');
+  const pending  = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
+  const paid     = filtered.filter(b => b.status === 'PAID' || b.status === 'ACQUITTED');
   const total    = filtered.reduce((s, b) => s + b.amount, 0);
 
-  const overdueAmount = overdue.reduce((s, b) => s + b.amount, 0);
-  const todayAmount   = today.reduce((s, b) => s + b.amount, 0);
-  const pendingAmount = pending.reduce((s, b) => s + b.amount, 0);
-  const paidAmount    = paid.reduce((s, b) => s + (b.amountPaid ?? b.amount), 0);
+  const emAberto = filtered.filter(b => b.status === 'OVERDUE' || b.status === 'PENDING');
+  const overdueAmount = emAberto.reduce((s, b) => s + b.amount, 0);
+  const todayAmount    = today.reduce((s, b) => s + b.amount, 0);
+  const pendingAmount  = pending.reduce((s, b) => s + b.amount, 0);
+  const paidAmount     = paid.reduce((s, b) => s + (b.amountPaid ?? b.amount), 0);
 
   if (!loading && !status.connected) {
     return (
@@ -233,7 +234,7 @@ export default function PagarPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Vencidos (R$)</p>
+          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Em aberto (R$)</p>
           <p className="text-xl font-bold text-red-500 tabular-nums mt-0.5">{BRL(overdueAmount)}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
