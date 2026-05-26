@@ -101,16 +101,16 @@ export default function PagarPage() {
   });
 
   // KPIs
-  const today    = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
-  const overdue  = filtered.filter(b => b.status === 'OVERDUE');
-  const pending  = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
-  const paid     = filtered.filter(b => b.status === 'PAID' || b.status === 'ACQUITTED');
+  const today   = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
+  const overdue = filtered.filter(b => b.status === 'OVERDUE');
+  const pending = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
+  const paid    = filtered.filter(b => b.status === 'PAID');
   const total    = filtered.reduce((s, b) => s + b.amount, 0);
 
-  const overdueAmount  = overdue.reduce((s, b) => s + b.amount, 0);
-  const todayAmount    = today.reduce((s, b) => s + b.amount, 0);
-  const pendingAmount  = pending.reduce((s, b) => s + b.amount, 0);
-  const paidAmount     = paid.reduce((s, b) => s + (b.amountPaid ?? b.amount), 0);
+  const overdueAmount = overdue.reduce((s, b) => s + b.amount, 0);
+  const todayAmount   = today.reduce((s, b) => s + b.amount, 0);
+  const pendingAmount = pending.reduce((s, b) => s + b.amount, 0);
+  const paidAmount    = paid.reduce((s, b) => s + (b.amountPaid ?? b.amount), 0);
 
   if (!loading && !status.connected) {
     return (
