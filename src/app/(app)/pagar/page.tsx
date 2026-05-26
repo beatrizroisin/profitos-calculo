@@ -3,217 +3,235 @@ import { useState, useEffect } from 'react';
 import { Card, Grid4, KPICard, Alert, Button, Pill } from '@/components/ui';
 import { BRL } from '@/lib/utils';
 
-interface Tx { id:string; description:string; amount:number; grossAmount:number|null; taxRate:number|null; dueDate:string; paidAt:string|null; isRecurring:boolean; status:string; type:string; notes:string|null; client:{id:string;name:string}|null; category:{id:string;name:string;color:string}|null; }
-interface Cat { id:string; name:string; }
+interface Bill {
+  id: string; externalId: string; description: string;
+  amount: number; amountPaid: number | null;
+  dueDate: string; paymentDate: string | null;
+  status: string; isRecurring: boolean;
+  categoryName: string | null; supplierName: string | null;
+  notes: string | null; monthRef: string; syncedAt: string;
+}
 
-const STATUS_PILL: Record<string,any> = { PENDING:'amber', PAID:'green', OVERDUE:'red', CANCELLED:'gray' };
-const STATUS_LABEL: Record<string,string> = { PENDING:'Pendente', PAID:'Pago', OVERDUE:'Vencido', CANCELLED:'Cancelado' };
+interface ContaAzulStatus { connected: boolean; lastSyncAt: string | null; }
 
-const EMPTY = { description:'', amount:'', grossAmount:'', taxRate:'', dueDate: new Date().toISOString().slice(0,10), paidAt:'', isRecurring:false, status:'PENDING', categoryId:'', notes:'' };
+const STATUS_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', OVERDUE: 'red', CANCELLED: 'gray' };
+const STATUS_LABEL: Record<string, string> = { PENDING: 'Pendente', PAID: 'Pago', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' };
 
 export default function PagarPage() {
-  const [txs, setTxs]       = useState<Tx[]>([]);
-  const [cats, setCats]      = useState<Cat[]>([]);
-  const [totals, setTotals]  = useState({ totalExpense:0 });
-  const [loading, setLoading]= useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId]  = useState<string|null>(null);
-  const [form, setForm]      = useState({ ...EMPTY });
-  const [saving, setSaving]  = useState(false);
-  const [saved, setSaved]    = useState('');
-  const [error, setError]    = useState('');
-  const [search, setSearch]  = useState('');
-  const [statusF, setStatusF]= useState('');
+  const now          = new Date();
+  const [year, setYear]   = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
 
-  useEffect(() => { fetchAll(); }, [search, statusF]);
+  const [bills, setBills]       = useState<Bill[]>([]);
+  const [status, setStatus]     = useState<ContaAzulStatus>({ connected: false, lastSyncAt: null });
+  const [loading, setLoading]   = useState(true);
+  const [syncing, setSyncing]   = useState(false);
+  const [saved, setSaved]       = useState('');
+  const [search, setSearch]     = useState('');
+  const [statusF, setStatusF]   = useState('');
 
-  async function fetchAll() {
-    setLoading(true);
-    const p = new URLSearchParams({ type: 'EXPENSE' });
-    if (search)  p.set('search', search);
-    if (statusF) p.set('status', statusF);
-    const res = await fetch(`/api/transactions?${p}`);
-    if (res.ok) {
-      const d = await res.json();
-      setTxs(d.transactions || []);
-      setTotals({ totalExpense: d.totalExpense || 0 });
-    }
+  const monthRef = `${year}-${String(month).padStart(2, '0')}`;
+  const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+
+  useEffect(() => { fetchStatus(); }, []);
+  useEffect(() => { if (status.connected) fetchBills(); }, [monthRef, statusF, search, status.connected]);
+
+  async function fetchStatus() {
+    const res = await fetch('/api/integrations/contaazul/status');
+    if (res.ok) setStatus(await res.json());
     setLoading(false);
   }
 
-  async function fetchCats() {
-    const res = await fetch('/api/categories?type=EXPENSE');
-    if (res.ok) setCats(await res.json());
+  async function fetchBills() {
+    setLoading(true);
+    const params = new URLSearchParams({ monthRef });
+    if (statusF) params.set('status', statusF);
+    if (search)  params.set('search', search);
+    const res = await fetch(`/api/integrations/contaazul/bills?${params}`);
+    if (res.ok) setBills(await res.json());
+    setLoading(false);
   }
 
-  function openNew() {
-    setEditId(null);
-    setForm({ ...EMPTY, dueDate: new Date().toISOString().slice(0,10) });
-    fetchCats();
-    setShowForm(true);
-  }
-
-  function openEdit(tx: Tx) {
-    setEditId(tx.id);
-    setForm({
-      description: tx.description,
-      amount:      String(tx.amount),
-      grossAmount: String(tx.grossAmount || tx.amount),
-      taxRate:     String(tx.taxRate || ''),
-      dueDate:     tx.dueDate.slice(0,10),
-      paidAt:      tx.paidAt?.slice(0,10) || '',
-      isRecurring: tx.isRecurring,
-      status:      tx.status,
-      categoryId:  tx.category?.id || '',
-      notes:       tx.notes || '',
+  async function syncNow() {
+    setSyncing(true);
+    const res = await fetch('/api/integrations/contaazul/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
     });
-    fetchCats();
-    setShowForm(true);
+    setSyncing(false);
+    if (res.ok) {
+      setSaved('Sincronizado com sucesso!');
+      setTimeout(() => setSaved(''), 3000);
+      fetchBills();
+    } else {
+      setSaved('Erro ao sincronizar.');
+      setTimeout(() => setSaved(''), 3000);
+    }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true); setError('');
-    const payload = {
-      ...form,
-      type:       'EXPENSE',
-      amount:     parseFloat(form.amount as string)   || 0,
-      grossAmount:parseFloat(form.grossAmount as string) || null,
-      taxRate:    parseFloat(form.taxRate as string)  || null,
-      paidAt:     form.paidAt || null,
-      categoryId: form.categoryId || null,
-    };
-    const url    = editId ? `/api/transactions/${editId}` : '/api/transactions';
-    const method = editId ? 'PUT' : 'POST';
-    const res    = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    setSaving(false);
-    if (res.ok) { setSaved(editId ? 'Lançamento atualizado.' : 'Lançamento adicionado.'); setTimeout(()=>setSaved(''),3000); setShowForm(false); fetchAll(); }
-    else { const d = await res.json(); setError(d.error || 'Erro.'); }
+  function prevMonth() {
+    if (month === 1) { setMonth(12); setYear(y => y - 1); }
+    else setMonth(m => m - 1);
   }
 
-  async function markPaid(tx: Tx) {
-    await fetch(`/api/transactions/${tx.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'PAID', paidAt: new Date().toISOString() }) });
-    setSaved('Marcado como pago.'); setTimeout(()=>setSaved(''),2500); fetchAll();
+  function nextMonth() {
+    if (month === 12) { setMonth(1); setYear(y => y + 1); }
+    else setMonth(m => m + 1);
   }
 
-  async function deleteTx(id: string) {
-    if (!confirm('Excluir este lançamento?')) return;
-    await fetch(`/api/transactions/${id}`, { method:'DELETE' });
-    setSaved('Lançamento excluído.'); setTimeout(()=>setSaved(''),2500); fetchAll();
-  }
+  const filtered = bills.filter(b => {
+    const matchS = !search || b.description.toLowerCase().includes(search.toLowerCase()) || (b.supplierName || '').toLowerCase().includes(search.toLowerCase());
+    const matchF = !statusF || b.status === statusF;
+    return matchS && matchF;
+  });
 
-  const pending = txs.filter(t=>t.status==='PENDING').reduce((s,t)=>s+t.amount,0);
-  const paid    = txs.filter(t=>t.status==='PAID').reduce((s,t)=>s+t.amount,0);
-  const overdue = txs.filter(t=>t.status==='OVERDUE');
-  const inp = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:border-[#1A6B4A]";
+  const pending = filtered.filter(b => b.status === 'PENDING').reduce((s, b) => s + b.amount, 0);
+  const paid    = filtered.filter(b => b.status === 'PAID').reduce((s, b) => s + (b.amountPaid || b.amount), 0);
+  const overdue = filtered.filter(b => b.status === 'OVERDUE');
+  const total   = filtered.reduce((s, b) => s + b.amount, 0);
+
+  // Não conectado — mostra tela de conexão
+  if (!loading && !status.connected) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Integração com Conta Azul</p>
+          </div>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
+          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
+              <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-gray-800 mb-1">Conecte o Conta Azul</h2>
+          <p className="text-sm text-gray-400 mb-6">Sincronize suas contas a pagar automaticamente todos os dias.</p>
+          <a href="/api/integrations/contaazul/auth"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
+            Conectar Conta Azul →
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1><p className="text-sm text-gray-400 mt-0.5">{txs.length} lançamentos</p></div>
-        {!showForm && <Button variant="primary" onClick={openNew}>+ Novo lançamento</Button>}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Contas a pagar</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {filtered.length} lançamentos · {monthName}
+            {status.lastSyncAt && (
+              <span className="ml-2 text-[10px] text-gray-300">
+                · sync {new Date(status.lastSyncAt).toLocaleString('pt-BR')}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={syncNow} disabled={syncing}>
+            {syncing ? '⟳ Sincronizando...' : '⟳ Sincronizar'}
+          </Button>
+        </div>
       </div>
 
-      {saved && <Alert variant="ok">{saved}</Alert>}
-      {overdue.length>0 && <Alert variant="danger"><strong>{overdue.length} lançamento(s) vencidos</strong> — {BRL(overdue.reduce((s,t)=>s+t.amount,0))} em atraso.</Alert>}
-
-      {showForm && (
-        <Card title={editId ? 'Editar lançamento' : 'Novo lançamento a pagar'}>
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <div className="col-span-2"><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Descrição / Fornecedor *</label><input required className={inp} placeholder="Ex: Remuneração PJ — João Silva" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} /></div>
-              <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Categoria</label>
-                <select className={inp} value={form.categoryId} onChange={e=>setForm(f=>({...f,categoryId:e.target.value}))}>
-                  <option value="">Sem categoria</option>
-                  {cats.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-3 mb-3">
-              <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Valor (R$) *</label><input required type="number" min="0" step="0.01" className={inp} value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} /></div>
-              <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Vencimento</label><input type="date" className={inp} value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value}))} /></div>
-              <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
-                <select className={inp} value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
-                  <option value="PENDING">Pendente</option><option value="PAID">Pago</option><option value="OVERDUE">Vencido</option><option value="CANCELLED">Cancelado</option>
-                </select>
-              </div>
-              <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Data de pagamento</label><input type="date" className={inp} value={form.paidAt} onChange={e=>setForm(f=>({...f,paidAt:e.target.value}))} /></div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Tipo</label>
-                <select className={inp} value={form.isRecurring?'1':'0'} onChange={e=>setForm(f=>({...f,isRecurring:e.target.value==='1'}))}>
-                  <option value="1">Recorrente</option><option value="0">Eventual</option>
-                </select>
-              </div>
-              <div className="col-span-2"><label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Observações</label><input className={inp} placeholder="Notas internas..." value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} /></div>
-            </div>
-            {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
-            <div className="flex gap-3">
-              <Button type="submit" variant="primary" disabled={saving}>{saving?'Salvando...':editId?'Salvar alterações':'Adicionar lançamento'}</Button>
-              <Button type="button" variant="secondary" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancelar</Button>
-            </div>
-          </form>
-        </Card>
+      {saved && <Alert variant={saved.includes('Erro') ? 'danger' : 'ok'}>{saved}</Alert>}
+      {overdue.length > 0 && (
+        <Alert variant="danger">
+          <strong>{overdue.length} lançamento(s) vencidos</strong> — {BRL(overdue.reduce((s, b) => s + b.amount, 0))} em atraso.
+        </Alert>
       )}
 
+      {/* Navegação por mês */}
+      <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-2.5 w-fit">
+        <button onClick={prevMonth} className="text-gray-400 hover:text-gray-700 transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center capitalize">{monthName}</span>
+        <button onClick={nextMonth} className="text-gray-400 hover:text-gray-700 transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      {/* KPIs */}
       <Grid4>
-        <KPICard label="Total a pagar" value={BRL(totals.totalExpense)} sub={`${txs.length} lançamentos`} color="red" accentColor="#DC3545" />
+        <KPICard label="Total do período" value={BRL(total)} sub={`${filtered.length} lançamentos`} color="red" accentColor="#DC3545" />
         <KPICard label="Pendente" value={BRL(pending)} sub="aguardando pagamento" color="amber" />
         <KPICard label="Pago" value={BRL(paid)} sub="lançamentos quitados" color="green" />
-        <KPICard label="Vencidos" value={String(overdue.length)} sub={overdue.length>0?BRL(overdue.reduce((s,t)=>s+t.amount,0)):'nenhum vencido'} color={overdue.length>0?'red':'default'} />
+        <KPICard label="Vencidos" value={String(overdue.length)} sub={overdue.length > 0 ? BRL(overdue.reduce((s, b) => s + b.amount, 0)) : 'nenhum vencido'} color={overdue.length > 0 ? 'red' : 'default'} />
       </Grid4>
 
+      {/* Tabela */}
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-50 flex gap-3 items-center flex-wrap">
-          <input type="text" placeholder="Buscar fornecedor ou descrição..." value={search} onChange={e=>setSearch(e.target.value)}
+          <input type="text" placeholder="Buscar fornecedor ou descrição..." value={search} onChange={e => setSearch(e.target.value)}
             className="flex-1 min-w-[180px] px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#1A6B4A]" />
           <div className="flex bg-gray-100 rounded-lg p-0.5">
-            {[['','Todos'],['PENDING','Pendentes'],['PAID','Pagos'],['OVERDUE','Vencidos']].map(([v,l])=>(
-              <button key={v} onClick={()=>setStatusF(v)} className={`px-3 py-1 rounded-md text-[11px] transition-all ${statusF===v?'bg-white text-gray-800 font-medium shadow-sm':'text-gray-500'}`}>{l}</button>
+            {[['', 'Todos'], ['PENDING', 'Pendentes'], ['PAID', 'Pagos'], ['OVERDUE', 'Vencidos']].map(([v, l]) => (
+              <button key={v} onClick={() => setStatusF(v)}
+                className={`px-3 py-1 rounded-md text-[11px] transition-all ${statusF === v ? 'bg-white text-gray-800 font-medium shadow-sm' : 'text-gray-500'}`}>{l}
+              </button>
             ))}
           </div>
-          {!showForm && <Button size="sm" variant="primary" onClick={openNew}>+ Novo</Button>}
         </div>
-        {loading ? <div className="text-center py-12 text-sm text-gray-400">Carregando...</div> : (
+
+        {loading ? (
+          <div className="text-center py-12 text-sm text-gray-400">Carregando...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-sm text-gray-400">
+            Nenhum lançamento para {monthName}.
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{minWidth:760}}>
-              <thead><tr className="border-b border-gray-100">
-                <th className="text-left px-5 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Descrição</th>
-                <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Categoria</th>
-                <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Vencimento</th>
-                <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Tipo</th>
-                <th className="text-right py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Valor</th>
-                <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="text-right py-3 pr-5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Ações</th>
-              </tr></thead>
+            <table className="w-full text-xs" style={{ minWidth: 760 }}>
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-5 py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Descrição / Fornecedor</th>
+                  <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Categoria</th>
+                  <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Vencimento</th>
+                  <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Tipo</th>
+                  <th className="text-right py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Valor</th>
+                  <th className="text-left py-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-3 pr-5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Pgto</th>
+                </tr>
+              </thead>
               <tbody>
-                {txs.length===0 ? <tr><td colSpan={7} className="text-center py-12 text-sm text-gray-400">Nenhum lançamento. <button onClick={openNew} className="text-[#1A6B4A] underline">Adicionar →</button></td></tr>
-                : txs.map(tx=>(
-                  <tr key={tx.id} className={`border-b border-gray-50 hover:bg-gray-50/40 transition-colors ${tx.status==='OVERDUE'?'bg-red-50/30':''}`}>
-                    <td className="px-5 py-3"><p className="font-medium text-gray-800 truncate max-w-[200px]">{tx.description}</p>{tx.notes&&<p className="text-[10px] text-gray-400">{tx.notes}</p>}</td>
-                    <td className="py-3">{tx.category?<span className="text-xs text-gray-600">{tx.category.name}</span>:<span className="text-[10px] text-gray-300">—</span>}</td>
-                    <td className="py-3 text-gray-500">{new Date(tx.dueDate).toLocaleDateString('pt-BR')}</td>
-                    <td className="py-3"><Pill label={tx.isRecurring?'Recorrente':'Eventual'} variant={tx.isRecurring?'blue':'gray'} /></td>
-                    <td className="py-3 text-right font-medium text-red-600 tabular">{BRL(tx.amount)}</td>
-                    <td className="py-3"><Pill label={STATUS_LABEL[tx.status]||tx.status} variant={STATUS_PILL[tx.status]||'gray'} /></td>
-                    <td className="py-3 pr-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {tx.status==='PENDING'&&<button onClick={()=>markPaid(tx)} className="text-[11px] font-medium text-green-600 hover:text-green-800">Pago</button>}
-                        <button onClick={()=>openEdit(tx)} className="text-[11px] font-medium text-blue-600 hover:text-blue-800">Editar</button>
-                        <button onClick={()=>deleteTx(tx.id)} className="text-[11px] font-medium text-red-500 hover:text-red-700">Excluir</button>
-                      </div>
+                {filtered.map(b => (
+                  <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50/40 transition-colors ${b.status === 'OVERDUE' ? 'bg-red-50/30' : ''}`}>
+                    <td className="px-5 py-3">
+                      <p className="font-medium text-gray-800 truncate max-w-[200px]">{b.description}</p>
+                      {b.supplierName && <p className="text-[10px] text-gray-400">{b.supplierName}</p>}
+                    </td>
+                    <td className="py-3">{b.categoryName ? <span className="text-xs text-gray-600">{b.categoryName}</span> : <span className="text-[10px] text-gray-300">—</span>}</td>
+                    <td className="py-3 text-gray-500">{new Date(b.dueDate).toLocaleDateString('pt-BR')}</td>
+                    <td className="py-3"><Pill label={b.isRecurring ? 'Recorrente' : 'Eventual'} variant={b.isRecurring ? 'blue' : 'gray'} /></td>
+                    <td className="py-3 text-right font-medium text-red-600 tabular-nums">{BRL(b.amount)}</td>
+                    <td className="py-3"><Pill label={STATUS_LABEL[b.status] || b.status} variant={STATUS_PILL[b.status] || 'gray'} /></td>
+                    <td className="py-3 pr-5 text-gray-400 text-[10px]">
+                      {b.paymentDate ? new Date(b.paymentDate).toLocaleDateString('pt-BR') : '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              {txs.length>0&&<tfoot><tr className="border-t border-gray-100 bg-gray-50">
-                <td colSpan={4} className="px-5 py-2.5 text-[11px] text-gray-500 font-medium">{txs.length} lançamentos</td>
-                <td className="py-2.5 text-right text-[11px] font-medium text-red-600 tabular">{BRL(txs.reduce((s,t)=>s+t.amount,0))}</td>
-                <td colSpan={2}></td>
-              </tr></tfoot>}
+              <tfoot>
+                <tr className="border-t border-gray-100 bg-gray-50">
+                  <td colSpan={4} className="px-5 py-2.5 text-[11px] text-gray-500 font-medium">{filtered.length} lançamentos</td>
+                  <td className="py-2.5 text-right text-[11px] font-medium text-red-600 tabular-nums">{BRL(total)}</td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
+      </div>
+
+      {/* Badge Conta Azul */}
+      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+        <div className="w-2 h-2 rounded-full bg-green-400"/>
+        Dados sincronizados do Conta Azul · atualização automática diária
       </div>
     </div>
   );

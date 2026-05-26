@@ -38,15 +38,33 @@ interface Collaborator {
 }
 
 const EMPTY_FORM = {
-  // Identification
-  name: '', position: '', type: 'PJ', document: '', email: '', phone: '',
-  // Contract
-  salary: '', hoursPerMonth: '160', startDate: '', endDate: '',
-  // Payment
-  paymentMethod: 'PIX', paymentDay: '5',
-  pixKey: '', bankName: '', bankAgency: '', bankAccount: '', bankAccountType: 'CORRENTE',
-  // Personal
-  birthDate: '', address: '', emergencyContact: '', emergencyPhone: '',
+  name: '', 
+  position: '', 
+  type: 'PJ', 
+  document: '', 
+  rg: '', // Adicionado
+  email: '', 
+  phone: '',
+  razaoSocial: '', // Adicionado
+  cnpj: '', // Adicionado
+  estadoCivil: '', // Adicionado
+  instagram: '', // Adicionado
+  nivelExperiencia: '', // Adicionado
+  salary: '', 
+  hoursPerMonth: '160', 
+  startDate: '', 
+  endDate: '',
+  paymentMethod: 'PIX', 
+  paymentDay: '5',
+  pixKey: '', 
+  bankName: '', 
+  bankAgency: '', 
+  bankAccount: '', 
+  bankAccountType: 'CORRENTE',
+  birthDate: '', 
+  address: '', 
+  emergencyContact: '', 
+  emergencyPhone: '',
   notes: '',
 };
 
@@ -57,8 +75,12 @@ const TYPE_COLOR: Record<string,string> = {
 const AVC = ['#1A6B4A','#2563EB','#7C3AED','#DC3545','#E67E22','#0891B2','#DB2777','#65A30D'];
 const ini = (n:string) => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const avc = (id:string) => AVC[parseInt(id.replace(/\D/g,'').slice(-2)||'0')%AVC.length];
-const fmt = (d:string|null|undefined) => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
-
+const fmt = (d:string|null|undefined) => {
+  if (!d) return '—';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+};
 // ─── Section title ────────────────────────────────────────────────────────────
 function SecTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -105,45 +127,65 @@ export default function ColaboradoresPage() {
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
-  function openEdit(c: Collaborator) {
-    setEditId(c.id); setViewId(null);
-    setForm({
-      name: c.name, position: c.position, type: c.type,
-      document: (c as any).document || '',
-      email: c.email || '', phone: c.phone || '',
-      salary: String(c.salary), hoursPerMonth: String(c.hoursPerMonth),
-      startDate: (c as any).startDate?.slice(0,10) || '',
-      endDate: (c as any).endDate?.slice(0,10) || '',
-      paymentMethod: (c as any).paymentMethod || 'PIX',
-      paymentDay: String((c as any).paymentDay || 5),
-      pixKey: (c as any).pixKey || '',
-      bankName: (c as any).bankName || '',
-      bankAgency: (c as any).bankAgency || '',
-      bankAccount: (c as any).bankAccount || '',
-      bankAccountType: (c as any).bankAccountType || 'CORRENTE',
-      birthDate: (c as any).birthDate?.slice(0,10) || '',
-      address: (c as any).address || '',
-      emergencyContact: (c as any).emergencyContact || '',
-      emergencyPhone: (c as any).emergencyPhone || '',
-      notes: c.notes || '',
-    });
-    setError('');
-    setShowForm(true);
-    window.scrollTo({top:0,behavior:'smooth'});
-  }
+function openEdit(c: Collaborator) {
+  setEditId(c.id); setViewId(null);
+  const data = c as any; // Facilita o acesso a campos estendidos do banco
+  
+  setForm({
+    name: c.name, 
+    position: c.position, 
+    type: c.type,
+    document: data.document || '',
+    rg: data.rg || '', // Agora o TS não vai reclamar do destino (form)
+    email: c.email || '', 
+    phone: c.phone || '',
+    razaoSocial: data.razaoSocial || '',
+    cnpj: data.cnpj || '',
+    birthDate: data.birthDate?.slice(0,10) || '',
+    estadoCivil: data.estadoCivil || '',
+    instagram: data.instagram || '',
+    nivelExperiencia: data.nivelExperiencia || '',
+    salary: String(c.salary), 
+    hoursPerMonth: String(c.hoursPerMonth),
+    startDate: data.startDate?.slice(0,10) || '',
+    endDate: data.endDate?.slice(0,10) || '',
+    paymentMethod: data.paymentMethod || 'PIX',
+    paymentDay: String(data.paymentDay || 5),
+    pixKey: data.pixKey || '',
+    bankName: data.bankName || '',
+    bankAgency: data.bankAgency || '',
+    bankAccount: data.bankAccount || '',
+    bankAccountType: data.bankAccountType || 'CORRENTE',
+    address: data.address || '',
+    emergencyContact: data.emergencyContact || '',
+    emergencyPhone: data.emergencyPhone || '',
+    notes: c.notes || '',
+  });
+  setError('');
+  setShowForm(true);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setError('');
     const payload = {
       name: form.name, position: form.position, type: form.type,
       salary: parseFloat(form.salary)||0, hoursPerMonth: parseInt(form.hoursPerMonth)||160,
-      document: form.document||null, email: form.email||null, phone: form.phone||null,
+      document: form.document||null,
+     rg: form.rg || null,
+      email: form.email||null, phone: form.phone||null,
+      razaoSocial: (form as any).razaoSocial||null,
+      cnpj: (form as any).cnpj||null,
+      birthDate: form.birthDate||null,
+      estadoCivil: (form as any).estadoCivil||null,
+      instagram: (form as any).instagram||null,
+      nivelExperiencia: (form as any).nivelExperiencia||null,
       startDate: form.startDate||null, endDate: form.endDate||null,
       paymentMethod: form.paymentMethod||null, paymentDay: parseInt(form.paymentDay)||5,
       pixKey: form.pixKey||null, bankName: form.bankName||null,
       bankAgency: form.bankAgency||null, bankAccount: form.bankAccount||null,
       bankAccountType: form.bankAccountType||null,
-      birthDate: form.birthDate||null, address: form.address||null,
+      address: form.address||null,
       emergencyContact: form.emergencyContact||null, emergencyPhone: form.emergencyPhone||null,
       notes: form.notes||null,
     };
@@ -195,10 +237,12 @@ export default function ColaboradoresPage() {
   const lbl = "block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5";
 
   // ── Detail view ─────────────────────────────────────────────────────────────
+// ── Detail view ─────────────────────────────────────────────────────────────
   const viewColab = viewId ? colabs.find(c=>c.id===viewId) : null;
   if (viewColab) {
     const oc = viewColab.occupancyPct>95?'text-red-600':viewColab.occupancyPct>75?'text-amber-600':'text-green-700';
     const bc = viewColab.occupancyPct>95?'bg-red-500':viewColab.occupancyPct>75?'bg-amber-500':'bg-[#1A6B4A]';
+    const d = viewColab as any;
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
@@ -228,7 +272,7 @@ export default function ColaboradoresPage() {
                 {!viewColab.isActive && <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full">Inativo</span>}
               </div>
               <p className="text-sm text-gray-500 mt-0.5">{viewColab.position}</p>
-              {(viewColab as any).email && <p className="text-xs text-gray-400 mt-0.5">{(viewColab as any).email}</p>}
+              {d.email && <p className="text-xs text-gray-400 mt-0.5">{d.email}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -244,7 +288,6 @@ export default function ColaboradoresPage() {
               </div>
             ))}
           </div>
-          {/* Occupation bar */}
           <div className="mt-4">
             <div className="flex justify-between text-xs mb-1.5">
               <span className="text-gray-500">Capacidade utilizada</span>
@@ -258,17 +301,40 @@ export default function ColaboradoresPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Contract info */}
+
+          {/* Identificação */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5">
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Informações contratuais</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Identificação</h3>
             <dl className="space-y-2.5">
               {[
-                ['Tipo de contrato', viewColab.type==='PJ'?'Pessoa Jurídica (PJ)':'CLT'],
-                ['CPF/Documento', (viewColab as any).document || '—'],
-                ['Telefone', (viewColab as any).phone || '—'],
-                ['Data de entrada', fmt((viewColab as any).startDate)],
-                ['Data de saída', fmt((viewColab as any).endDate)],
-                ['Horas disponíveis', viewColab.hoursPerMonth+'h/mês'],
+                ['Nome completo',    viewColab.name],
+                ['Cargo / função',   viewColab.position],
+                ['CPF',              d.document || '—'],
+                ['RG',               d.rg || '—'],
+                ['E-mail',           d.email || '—'],
+                ['Telefone',         d.phone || '—'],
+                ['Razão Social (PJ)', d.razaoSocial || '—'],
+                ['CNPJ (PJ)',        d.cnpj || '—'],
+              ].map(([l,v])=>(
+                <div key={l} className="flex justify-between text-sm">
+                  <dt className="text-gray-500">{l}</dt>
+                  <dd className="font-medium text-gray-800 text-right max-w-[60%]">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {/* Contrato e remuneração */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Contrato e remuneração</h3>
+            <dl className="space-y-2.5">
+              {[
+                ['Tipo de vínculo',       viewColab.type === 'PJ' ? 'Pessoa Jurídica (PJ)' : 'CLT'],
+                ['Honorário / salário',   BRL(viewColab.salary) + '/mês'],
+                ['Custo/hora',            BRL(viewColab.costPerHour) + '/h'],
+                ['Horas disponíveis',     viewColab.hoursPerMonth + 'h/mês'],
+                ['Data de entrada',       fmt(d.startDate)],
+                ['Data de saída',         fmt(d.endDate)],
               ].map(([l,v])=>(
                 <div key={l} className="flex justify-between text-sm">
                   <dt className="text-gray-500">{l}</dt>
@@ -278,17 +344,17 @@ export default function ColaboradoresPage() {
             </dl>
           </div>
 
-          {/* Payment info */}
+          {/* Dados de pagamento */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Dados de pagamento</h3>
             <dl className="space-y-2.5">
               {[
-                ['Método', (viewColab as any).paymentMethod || '—'],
-                ['Dia de pagamento', (viewColab as any).paymentDay ? `Dia ${(viewColab as any).paymentDay}` : '—'],
-                ['Chave PIX', (viewColab as any).pixKey || '—'],
-                ['Banco', (viewColab as any).bankName || '—'],
-                ['Agência', (viewColab as any).bankAgency || '—'],
-                ['Conta', (viewColab as any).bankAccount ? `${(viewColab as any).bankAccount} (${(viewColab as any).bankAccountType||'—'})` : '—'],
+                ['Método',          d.paymentMethod || '—'],
+                ['Dia de pagamento', d.paymentDay ? `Dia ${d.paymentDay}` : '—'],
+                ['Chave PIX',       d.pixKey || '—'],
+                ['Banco',           d.bankName || '—'],
+                ['Agência',         d.bankAgency || '—'],
+                ['Conta',           d.bankAccount ? `${d.bankAccount} (${d.bankAccountType || '—'})` : '—'],
               ].map(([l,v])=>(
                 <div key={l} className="flex justify-between text-sm">
                   <dt className="text-gray-500">{l}</dt>
@@ -298,19 +364,22 @@ export default function ColaboradoresPage() {
             </dl>
           </div>
 
-          {/* Personal info */}
+          {/* Informações pessoais */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">Informações pessoais</h3>
             <dl className="space-y-2.5">
               {[
-                ['Data de nascimento', fmt((viewColab as any).birthDate)],
-                ['Endereço', (viewColab as any).address || '—'],
-                ['Contato de emergência', (viewColab as any).emergencyContact || '—'],
-                ['Tel. emergência', (viewColab as any).emergencyPhone || '—'],
+                ['Data de nascimento',    fmt(d.birthDate)],
+                ['Estado civil',          d.estadoCivil || '—'],
+                ['Instagram',             d.instagram || '—'],
+                ['Nível de experiência',  d.nivelExperiencia || '—'],
+                ['Endereço',              d.address || '—'],
+                ['Contato de emergência', d.emergencyContact || '—'],
+                ['Tel. emergência',       d.emergencyPhone || '—'],
               ].map(([l,v])=>(
                 <div key={l} className="flex justify-between text-sm">
                   <dt className="text-gray-500">{l}</dt>
-                  <dd className="font-medium text-gray-800 text-right max-w-[60%] text-right">{v}</dd>
+                  <dd className="font-medium text-gray-800 text-right max-w-[60%]">{v}</dd>
                 </div>
               ))}
               {viewColab.notes && (
@@ -322,8 +391,8 @@ export default function ColaboradoresPage() {
             </dl>
           </div>
 
-          {/* Allocations */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5">
+          {/* Projetos alocados */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 md:col-span-2">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-4">
               Projetos alocados ({viewColab.allocations.length})
             </h3>
@@ -343,6 +412,7 @@ export default function ColaboradoresPage() {
               </div>
             )}
           </div>
+
         </div>
       </div>
     );
@@ -357,11 +427,19 @@ export default function ColaboradoresPage() {
           <p className="text-xs text-gray-400 mt-0.5">{active.length} ativos · {colabs.length} cadastrados</p>
         </div>
         {!showForm && (
-          <button onClick={openNew}
-            className="flex items-center gap-2 px-4 py-2 bg-[#1A6B4A] text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Novo colaborador
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/api/export?type=collaborators" download>
+              <button className="flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Exportar CSV
+              </button>
+            </a>
+            <button onClick={openNew}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1A6B4A] text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Novo colaborador
+            </button>
+          </div>
         )}
       </div>
 
@@ -402,6 +480,11 @@ export default function ColaboradoresPage() {
                   onChange={e=>F('document',e.target.value)} placeholder="000.000.000-00"/>
               </div>
               <div>
+                <label className={lbl}>RG</label>
+                <input className={inp} value={(form as any).rg || ''}
+                  onChange={e=>F('rg',e.target.value)} placeholder="00.000.000-0"/>
+              </div>
+              <div>
                 <label className={lbl}>E-mail</label>
                 <input type="email" className={inp} value={form.email}
                   onChange={e=>F('email',e.target.value)} placeholder="nome@empresa.com"/>
@@ -410,6 +493,16 @@ export default function ColaboradoresPage() {
                 <label className={lbl}>Telefone / WhatsApp</label>
                 <input className={inp} value={form.phone}
                   onChange={e=>F('phone',e.target.value)} placeholder="(11) 99999-9999"/>
+              </div>
+              <div>
+                <label className={lbl}>Razão Social (PJ)</label>
+                <input className={inp} value={(form as any).razaoSocial || ''}
+                  onChange={e=>F('razaoSocial',e.target.value)} placeholder="Nome da empresa PJ"/>
+              </div>
+              <div>
+                <label className={lbl}>CNPJ (PJ)</label>
+                <input className={inp} value={(form as any).cnpj || ''}
+                  onChange={e=>F('cnpj',e.target.value)} placeholder="00.000.000/0001-00"/>
               </div>
 
               {/* ── CONTRATO ── */}
@@ -513,6 +606,35 @@ export default function ColaboradoresPage() {
                 <label className={lbl}>Data de nascimento</label>
                 <input type="date" className={inp} value={form.birthDate}
                   onChange={e=>F('birthDate',e.target.value)}/>
+              </div>
+              <div>
+                <label className={lbl}>Estado civil</label>
+                <select className={inp} value={(form as any).estadoCivil || ''}
+                  onChange={e=>F('estadoCivil',e.target.value)}>
+                  <option value="">Selecione...</option>
+                  <option>Solteiro(a)</option>
+                  <option>Casado(a)</option>
+                  <option>Divorciado(a)</option>
+                  <option>Viúvo(a)</option>
+                  <option>União estável</option>
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Instagram</label>
+                <input className={inp} value={(form as any).instagram || ''}
+                  onChange={e=>F('instagram',e.target.value)} placeholder="@seuinstagram"/>
+              </div>
+              <div>
+                <label className={lbl}>Nível de experiência</label>
+                <select className={inp} value={(form as any).nivelExperiencia || ''}
+                  onChange={e=>F('nivelExperiencia',e.target.value)}>
+                  <option value="">Selecione...</option>
+                  <option>Júnior</option>
+                  <option>Pleno</option>
+                  <option>Sênior</option>
+                  <option>Especialista</option>
+                  <option>Gestor</option>
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <label className={lbl}>Endereço completo</label>

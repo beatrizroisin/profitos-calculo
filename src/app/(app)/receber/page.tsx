@@ -46,6 +46,7 @@ export default function ReceberPage() {
   const [saved,     setSaved]     = useState('');
   const [error,     setError]     = useState('');
   const [tab,       setTab]       = useState<'clientes'|'extras'>('clientes');
+  const [txFilter, setTxFilter] = useState('');
   // Paid tracking for client entries (in-memory toggle per session)
   const [paidClients, setPaidClients] = useState<Set<string>>(new Set());
   const [search,    setSearch]    = useState('');
@@ -65,7 +66,13 @@ export default function ReceberPage() {
       fetch(`/api/transactions?type=INCOME&status=PAID&from=${from}&to=${to}`),
     ]);
     if (mRes.ok)   setMonthly(await mRes.json());
-    if (tRes.ok)   { const d = await tRes.json(); setTxs(d.transactions || []); }
+    if (tRes.ok)   {
+      const d = await tRes.json();
+      const sorted = (d.transactions || []).sort((a: any, b: any) =>
+        new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      );
+      setTxs(sorted);
+    }
     if (catRes.ok) setCats(await catRes.json());
     // Restore paid client state from DB
     if (paidRes.ok) {
@@ -301,6 +308,12 @@ export default function ReceberPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
+              <div className="flex bg-gray-100 rounded-lg p-0.5 w-fit mb-3">
+                {[['','Todos'],['PENDING','Pendentes'],['PAID','Recebidos']].map(([v,l])=>(
+                  <button key={v} onClick={()=>setTxFilter(v)}
+                    className={`px-3 py-1 rounded-md text-[11px] transition-all ${txFilter===v?'bg-white text-gray-800 font-medium shadow-sm':'text-gray-500'}`}>{l}</button>
+                ))}
+              </div>
               <table className="w-full text-xs" style={{ minWidth: 780 }}>
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -501,7 +514,7 @@ export default function ReceberPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {txs.map(tx => {
+                    {txs.filter(tx => !txFilter || tx.status === txFilter).map(tx => {
                       const gross = tx.grossAmount || tx.amount;
                       const impV  = gross - tx.amount;
                       return (

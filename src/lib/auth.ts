@@ -56,12 +56,13 @@ export const authOptions: NextAuthOptions = {
         if (email) {
           const dbUser = await prisma.user.findUnique({
             where: { email },
-            include: { company: { select: { id:true, name:true } } },
+            include: { company: { select: { id:true, name:true, slug:true } } },
           });
           if (dbUser) {
             token.id          = dbUser.id;
             token.companyId   = dbUser.companyId;
             token.companyName = dbUser.company?.name ?? '';
+            token.companySlug = dbUser.company?.slug ?? '';
             token.role        = dbUser.role;
             token.avatarUrl   = dbUser.avatarUrl ?? (user as any)?.image ?? '';
             token.isActive    = dbUser.isActive;
@@ -77,6 +78,7 @@ export const authOptions: NextAuthOptions = {
         u.id          = token.id;
         u.companyId   = token.companyId;
         u.companyName = token.companyName;
+        u.companySlug = token.companySlug;
         u.role        = token.role;
         u.avatarUrl   = token.avatarUrl;
         u.isActive    = token.isActive;
@@ -102,7 +104,7 @@ export const authOptions: NextAuthOptions = {
         const { email, password } = parsed.data;
         const user = await prisma.user.findUnique({
           where: { email },
-          include: { company: { select: { id:true, name:true } } },
+          include: { company: { select: { id:true, name:true, slug:true } } },
         });
         if (!user || !user.isActive || !user.passwordHash) return null;
         const valid = await bcrypt.compare(password, user.passwordHash);

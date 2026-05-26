@@ -1,6 +1,4 @@
-// src/app/(app)/dashboard/page.tsx — v3.7 COMPLETO
-// DRE estruturado, inadimplência, fluxo de caixa projetado, margem por cliente,
-// alerta de concentração, break-even — todos implementados.
+// src/app/(app)/dashboard/page.tsx — v3.8
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -27,13 +25,14 @@ export default async function DashboardPage({ searchParams }: Props) {
   const thisMonth    = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonth    = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const [clients, collaborators, txExpenseAgg, txExpensePending, txOverdue, txPaidThisMonth] = await Promise.all([
+  const [clients, collaborators, txExpenseAgg, txExpensePending, txOverdue, txPaidThisMonth, partners] = await Promise.all([
     prisma.client.findMany({ where: { companyId } }),
     prisma.collaborator.findMany({ where: { companyId, isActive: true }, select: { salary: true, name: true } }),
     prisma.transaction.aggregate({ where: { companyId, type: 'EXPENSE', status: { not: 'CANCELLED' } }, _sum: { amount: true } }),
     prisma.transaction.aggregate({ where: { companyId, type: 'EXPENSE', status: { in: ['PENDING','OVERDUE'] } }, _sum: { amount: true } }),
     prisma.transaction.findMany({ where: { companyId, type: 'INCOME', status: 'OVERDUE' }, select: { amount: true, description: true, clientId: true, dueDate: true, client: { select: { name: true } } } }),
     prisma.transaction.findMany({ where: { companyId, type: 'INCOME', status: 'PAID', paidAt: { gte: thisMonth, lt: nextMonth } }, select: { clientId: true } }),
+    prisma.partner.findMany({ where: { companyId, isActive: true }, include: { commissions: { include: { client: { select: { netRevenue: true } } } } } }),
   ]);
 
   const active   = clients.filter(c => c.status === 'ACTIVE');
@@ -54,6 +53,11 @@ export default async function DashboardPage({ searchParams }: Props) {
   const despesasPendentes = txExpensePending._sum.amount ?? 0;
   const totalCustoMensal  = folhaTotal + despesasLancadas;
 
+  // Comissões de parceiros
+  const totalComissoes = partners.reduce((sum, p) =>
+    sum + p.commissions.reduce((s, c) => s + (c.client.netRevenue * c.pct / 100), 0), 0
+  );
+
   // P&L
   const resultado          = monthlyNet - totalCustoMensal;
   const marginPct          = monthlyNet > 0 ? resultado / monthlyNet * 100 : 0;
@@ -65,6 +69,13 @@ export default async function DashboardPage({ searchParams }: Props) {
   const defaulters    = active.filter(c => c.isRecurring && (c as any).dueDay <= today && !paidClientIds.has(c.id));
   const overdueRevenue = txOverdue.reduce((s, t) => s + t.amount, 0);
   const inadRevenue    = defaulters.reduce((s, c) => s + c.netRevenue, 0);
+
+  // ── CONTRATOS ENCERRANDO ─────────────────────────────────────────────────
+  const encerrandoBreve = active.filter(c => {
+    if (!c.isRecurring || !c.totalInstallments || c.totalInstallments === 0) return false;
+    const restantes = c.totalInstallments - c.currentInstallment;
+    return restantes >= 0 && restantes <= 2;
+  });
 
   // ── CONCENTRAÇÃO ────────────────────────────────────────────────────────
   const sorted         = [...active].sort((a, b) => b.netRevenue - a.netRevenue);
@@ -100,6 +111,28 @@ export default async function DashboardPage({ searchParams }: Props) {
   const marginColor = (p: number) => p >= 25 ? 'text-green-700' : p >= 10 ? 'text-amber-600' : 'text-red-600';
   const marginBg    = (p: number) => p >= 25 ? 'bg-green-50' : p >= 10 ? 'bg-amber-50' : 'bg-red-50';
 
+  // ── GRÁFICO PAGAR/RECEBER 12 MESES ──────────────────────────────────────
+  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const [txIncome12, txExpense12] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { companyId, type: 'INCOME', dueDate: { gte: twelveMonthsAgo } },
+      select: { amount: true, dueDate: true },
+    }),
+    prisma.transaction.findMany({
+      where: { companyId, type: 'EXPENSE', dueDate: { gte: twelveMonthsAgo } },
+      select: { amount: true, dueDate: true },
+    }),
+  ]);
+
+  const barChartData = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    const m = d.getMonth(); const y = d.getFullYear();
+    const rec = txIncome12.filter(t => { const td = new Date(t.dueDate); return td.getMonth()===m && td.getFullYear()===y; }).reduce((s,t)=>s+t.amount,0);
+    const pag = txExpense12.filter(t => { const td = new Date(t.dueDate); return td.getMonth()===m && td.getFullYear()===y; }).reduce((s,t)=>s+t.amount,0);
+    const recTotal = (m === now.getMonth() && y === now.getFullYear()) ? rec + monthlyNet : rec;
+    return { mes: MONTH_SHORT[m] + '/' + String(y).slice(2), receber: recTotal, pagar: pag };
+  });
+
   return (
     <div className="space-y-5">
 
@@ -124,6 +157,53 @@ export default async function DashboardPage({ searchParams }: Props) {
       {active.length === 0 && pipeline.length === 0 && (
         <Alert variant="info"><strong>Bem-vindo.</strong> Cadastre <Link href="/clientes?new=1" className="underline font-medium">clientes</Link> e a sua <Link href="/colaboradores" className="underline font-medium">equipe</Link> para ativar o dashboard.</Alert>
       )}
+
+      {/* Resumo comissões parceiros */}
+      {totalComissoes > 0 && (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"/>
+            <p className="text-xs text-amber-800">
+              💰 <strong>Comissões a pagar este mês:</strong>{' '}
+              <span className="font-semibold">{BRL(totalComissoes)}</span> para {partners.length} parceiro{partners.length !== 1 ? 's' : ''} comissionado{partners.length !== 1 ? 's' : ''}.
+            </p>
+          </div>
+          <Link href="/parceiros" className="px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors flex-shrink-0">
+            Ver parceiros →
+          </Link>
+        </div>
+      )}
+
+      {/* ── KPIs linha 1 ── */}
+      <Grid4>
+        <KPICard label={`Receita líquida (${periodLabel})`} value={BRL((showPipeline ? monthlyNet + pipelineNet : monthlyNet) * months)}
+          sub={showPipeline ? `${BRL(monthlyNet)} ativo + ${BRL(pipelineNet)} pipeline` : `${BRL(monthlyNet)}/mês · ${active.length} clientes`}
+          color="green" accentColor="#1A6B4A" />
+        <KPICard label={`Custo total (${periodLabel})`} value={BRL(totalCustoMensal * months)}
+          sub={`Folha ${BRL(folhaTotal)} + Desp. ${BRL(despesasLancadas)}`}
+          color="red" accentColor="#DC3545" />
+        <KPICard label={`Resultado (${periodLabel})`} value={BRL((showPipeline ? resultadoComPL : resultado) * months)}
+          sub={showPipeline ? 'projeção com pipeline' : `${pct(marginPct)} de margem real`}
+          color={(showPipeline ? resultadoComPL : resultado) >= 0 ? 'green' : 'red'}
+          accentColor={(showPipeline ? resultadoComPL : resultado) >= 0 ? '#1A6B4A' : '#DC3545'} />
+        <KPICard label="Ticket médio líquido" value={BRL(ticketMedio)} sub={`break-even: ${breakEven} clientes`} color="blue" />
+      </Grid4>
+
+      {/* ── KPIs linha 2 ── */}
+      <Grid4>
+        <KPICard label="Folha de pagamento" value={BRL(folhaTotal)}
+          sub={`${collaborators.length} colaboradores · ${pct(folhaPct)} receita`}
+          color={folhaPct > 60 ? 'red' : 'amber'} />
+        <KPICard label="Despesas lançadas" value={BRL(despesasLancadas)}
+          sub={despesasPendentes > 0 ? `${BRL(despesasPendentes)} pendente/vencido` : 'todas quitadas'}
+          color={despesasPendentes > 0 ? 'amber' : 'default'} />
+        <KPICard label="Inadimplência estimada" value={inadRevenue > 0 ? BRL(inadRevenue) : 'Nenhuma'}
+          sub={inadRevenue > 0 ? `${defaulters.length} clientes não pagaram` : 'todos em dia'}
+          color={inadRevenue > 0 ? 'red' : 'green'} accentColor={inadRevenue > 0 ? '#DC3545' : '#1A6B4A'} />
+        <KPICard label="Comissões parceiros" value={totalComissoes > 0 ? BRL(totalComissoes) : '—'}
+          sub={totalComissoes > 0 ? `${partners.length} parceiro${partners.length !== 1 ? 's' : ''} · mês vigente` : 'nenhum parceiro ativo'}
+          color={totalComissoes > 0 ? 'amber' : 'default'} accentColor="#E67E22" />
+      </Grid4>
 
       {/* ── 1. DRE MENSAL ── */}
       <Card title="DRE — Demonstrativo de resultado do mês" subtitle={`Competência: ${now.toLocaleString('pt-BR',{month:'long',year:'numeric'})} · ${periodLabel}`}>
@@ -151,6 +231,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             {[
               ['Folha de pagamento', `–${BRL(folhaTotal * months)}`, 'text-red-600'],
               ['Despesas lançadas', `–${BRL(despesasLancadas * months)}`, 'text-orange-500'],
+              ...(totalComissoes > 0 ? [['Comissões parceiros', `–${BRL(totalComissoes * months)}`, 'text-amber-600']] : []),
             ].map(([l,v,c]) => (
               <div key={l as string} className="flex justify-between items-center py-1.5 border-b border-gray-50">
                 <span className="text-xs text-gray-500">{l}</span>
@@ -159,7 +240,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             ))}
             <div className="flex justify-between items-center py-2 mt-1 rounded-lg bg-red-50 px-2">
               <span className="text-xs font-semibold text-red-800">= Total de custos</span>
-              <span className="text-xs font-bold tabular-nums text-red-700">–{BRL(totalCustoMensal * months)}</span>
+              <span className="text-xs font-bold tabular-nums text-red-700">–{BRL((totalCustoMensal + totalComissoes) * months)}</span>
             </div>
           </div>
           {/* Coluna Resultado */}
@@ -200,34 +281,88 @@ export default async function DashboardPage({ searchParams }: Props) {
         )}
       </Card>
 
-      {/* ── 2. KPIs linha 1 ── */}
-      <Grid4>
-        <KPICard label={`Receita líquida (${periodLabel})`} value={BRL((showPipeline ? monthlyNet + pipelineNet : monthlyNet) * months)}
-          sub={showPipeline ? `${BRL(monthlyNet)} ativo + ${BRL(pipelineNet)} pipeline` : `${BRL(monthlyNet)}/mês · ${active.length} clientes`}
-          color="green" accentColor="#1A6B4A" />
-        <KPICard label={`Custo total (${periodLabel})`} value={BRL(totalCustoMensal * months)}
-          sub={`Folha ${BRL(folhaTotal)} + Desp. ${BRL(despesasLancadas)}`}
-          color="red" accentColor="#DC3545" />
-        <KPICard label={`Resultado (${periodLabel})`} value={BRL((showPipeline ? resultadoComPL : resultado) * months)}
-          sub={showPipeline ? 'projeção com pipeline' : `${pct(marginPct)} de margem real`}
-          color={(showPipeline ? resultadoComPL : resultado) >= 0 ? 'green' : 'red'}
-          accentColor={(showPipeline ? resultadoComPL : resultado) >= 0 ? '#1A6B4A' : '#DC3545'} />
-        <KPICard label="Ticket médio líquido" value={BRL(ticketMedio)} sub={`break-even: ${breakEven} clientes`} color="blue" />
-      </Grid4>
+      {/* ── CONTRATOS ENCERRANDO ── */}
+      {encerrandoBreve.length > 0 && (
+        <Card title="⚠️ Contratos encerrando em breve" subtitle="Clientes com 2 ou menos parcelas restantes — considere renovar antes do vencimento">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ minWidth: 400 }}>
+              <thead>
+                <tr>
+                  {['Cliente','Parcela atual','Parcelas restantes','Receita/mês','Vencimento'].map(h => (
+                    <th key={h} className="text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-100">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {encerrandoBreve.map(c => {
+                  const restantes = c.totalInstallments - c.currentInstallment;
+                  return (
+                    <tr key={c.id} className="border-b border-gray-50 last:border-0 bg-amber-50/30">
+                      <td className="py-2 pr-3 text-xs font-medium text-gray-800">{c.name}</td>
+                      <td className="py-2 pr-3 text-xs text-gray-500">{c.currentInstallment}/{c.totalInstallments}</td>
+                      <td className="py-2 pr-3">
+                        <span className={`text-[9.5px] font-medium px-2 py-0.5 rounded-full ${restantes === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {restantes === 0 ? 'Última parcela' : `${restantes} parcela${restantes > 1 ? 's' : ''}`}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 text-right text-xs font-semibold text-amber-700 tabular-nums">{BRL(c.netRevenue)}</td>
+                      <td className="py-2 text-xs text-gray-500">dia {(c as any).dueDay}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-100 bg-gray-50">
+                  <td colSpan={3} className="py-2 text-xs font-semibold text-gray-600">Receita em risco de encerramento</td>
+                  <td className="py-2 text-right text-xs font-bold text-amber-700 tabular-nums">{BRL(encerrandoBreve.reduce((s, c) => s + c.netRevenue, 0))}</td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </Card>
+      )}
 
-      {/* ── 2. KPIs linha 2 ── */}
-      <Grid4>
-        <KPICard label="Folha de pagamento" value={BRL(folhaTotal)}
-          sub={`${collaborators.length} colaboradores · ${pct(folhaPct)} receita`}
-          color={folhaPct > 60 ? 'red' : 'amber'} />
-        <KPICard label="Despesas lançadas" value={BRL(despesasLancadas)}
-          sub={despesasPendentes > 0 ? `${BRL(despesasPendentes)} pendente/vencido` : 'todas quitadas'}
-          color={despesasPendentes > 0 ? 'amber' : 'default'} />
-        <KPICard label="Inadimplência estimada" value={inadRevenue > 0 ? BRL(inadRevenue) : 'Nenhuma'}
-          sub={inadRevenue > 0 ? `${defaulters.length} clientes não pagaram` : 'todos em dia'}
-          color={inadRevenue > 0 ? 'red' : 'green'} accentColor={inadRevenue > 0 ? '#DC3545' : '#1A6B4A'} />
-        <KPICard label="Receita recorrente" value={BRL(recurringRev)} sub="mensal garantida" color="green" />
-      </Grid4>
+
+
+      {/* ── GRÁFICO PAGAR / RECEBER 12 MESES ── */}
+      <Card title="Fluxo financeiro — 12 meses" subtitle="Contas a receber vs contas a pagar por mês">
+        <div className="overflow-x-auto">
+          <div className="min-w-[700px]">
+            <div className="flex items-end gap-2 h-48 px-2">
+              {barChartData.map((d, i) => {
+                const maxVal = Math.max(...barChartData.map(x => Math.max(x.receber, x.pagar)), 1);
+                const recH = Math.round((d.receber / maxVal) * 160);
+                const pagH = Math.round((d.pagar / maxVal) * 160);
+                const isCurrentMonth = i === 11;
+                return (
+                  <div key={d.mes} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="flex items-end gap-0.5 w-full justify-center" style={{ height: 160 }}>
+                      <div
+                        className={`w-[45%] rounded-t-sm transition-all ${isCurrentMonth ? 'bg-[#1A6B4A]' : 'bg-green-300'}`}
+                        style={{ height: recH || 2 }}
+                        title={`Receber: ${new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(d.receber)}`}
+                      />
+                      <div
+                        className={`w-[45%] rounded-t-sm transition-all ${isCurrentMonth ? 'bg-red-500' : 'bg-red-300'}`}
+                        style={{ height: pagH || 2 }}
+                        title={`Pagar: ${new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(d.pagar)}`}
+                      />
+                    </div>
+                    <p className={`text-[9px] text-center ${isCurrentMonth ? 'font-bold text-gray-800' : 'text-gray-400'}`}>{d.mes}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-4 mt-3 px-2">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-green-300"/><span className="text-[10px] text-gray-500">A receber</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-300"/><span className="text-[10px] text-gray-500">A pagar</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-[#1A6B4A]"/><span className="text-[10px] text-gray-500">Receber (mês atual)</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-red-500"/><span className="text-[10px] text-gray-500">Pagar (mês atual)</span></div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* ── ALERTS CFO ── */}
       {resultado < 0 && (
@@ -266,7 +401,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         </Alert>
       )}
 
-      {/* ── 3. MAIN GRID: gráfico receita + fluxo pagar×receber ── */}
+      {/* ── MAIN GRID: receita por cliente + fluxo ── */}
       <Grid2>
         <Card title={showPipeline ? 'Receita por cliente (ativos + pipeline)' : 'Receita por cliente (top 6)'}
           subtitle={showPipeline ? 'Azul = ativo · Roxo = pipeline' : 'Carteira ativa — líquido mensal'}>
@@ -290,7 +425,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         </Card>
       </Grid2>
 
-      {/* ── 4. INADIMPLÊNCIA ── */}
+      {/* ── INADIMPLÊNCIA ── */}
       {(defaulters.length > 0 || txOverdue.length > 0) && (
         <Card title="Inadimplência — clientes sem confirmação de pagamento"
           subtitle={`Mês: ${now.toLocaleString('pt-BR',{month:'long'})} · Clientes recorrentes com vencimento passado e sem registro de pagamento`}
@@ -310,11 +445,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <td className="py-2 pr-3 text-xs font-medium text-gray-800">{c.name}</td>
                     <td className="py-2 pr-3 text-xs text-gray-500">dia {(c as any).dueDay}</td>
                     <td className="py-2 pr-3 text-right text-xs font-semibold text-red-700 tabular-nums">{BRL(c.netRevenue)}</td>
-                    <td className="py-2">
-                      <span className="text-[9.5px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                        Sem confirmação
-                      </span>
-                    </td>
+                    <td className="py-2"><span className="text-[9.5px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">Sem confirmação</span></td>
                   </tr>
                 ))}
                 {txOverdue.map((t, i) => (
@@ -338,7 +469,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         </Card>
       )}
 
-      {/* ── 5. MARGEM UNITÁRIA POR CLIENTE ── */}
+      {/* ── MARGEM UNITÁRIA POR CLIENTE ── */}
       {clientMargins.length > 0 && (
         <Card title="Margem unitária por cliente" subtitle="Custo distribuído proporcionalmente por receita — quanto cada cliente contribui para o resultado">
           <div className="overflow-x-auto">
@@ -394,9 +525,8 @@ export default async function DashboardPage({ searchParams }: Props) {
         </Card>
       )}
 
-      {/* ── 6. FLUXO DE CAIXA PROJETADO 6 MESES ── */}
-      <Card title="Projeção de caixa — próximos 6 meses"
-        subtitle="Baseado na receita e custo atual. Sem crescimento assumido (cenário conservador).">
+      {/* ── FLUXO DE CAIXA PROJETADO 6 MESES ── */}
+      <Card title="Projeção de caixa — próximos 6 meses" subtitle="Baseado na receita e custo atual. Sem crescimento assumido (cenário conservador).">
         <div className="overflow-x-auto">
           <table className="w-full" style={{ minWidth: 480 }}>
             <thead>
@@ -483,7 +613,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         {[
           { href:'/clientes',      label:'Novo cliente',     icon:'👤', color:'bg-blue-50 text-blue-700',    qs:'?new=1' },
           { href:'/colaboradores', label:'Novo colaborador', icon:'👥', color:'bg-green-50 text-green-700',  qs:'' },
-          { href:'/metas',         label:'Ver metas',        icon:'🎯', color:'bg-purple-50 text-purple-700', qs:'' },
+          { href:'/parceiros',     label:'Parceiros',        icon:'🤝', color:'bg-amber-50 text-amber-700',  qs:'' },
           { href:'/simulador',     label:'Simular cenário',  icon:'🔮', color:'bg-orange-50 text-orange-700', qs:'' },
         ].map(item => (
           <Link key={item.href+item.qs} href={item.href+item.qs}

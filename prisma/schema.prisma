@@ -32,7 +32,8 @@ model Company {
   collaboratorAllocations CollaboratorAllocation[]
   runRunConfig            RunRunConfig?
   settings                CompanySettings?
-
+  partners                Partner[]
+  contaAzulConfig         ContaAzulConfig?
   @@map("companies")
 }
 
@@ -120,11 +121,42 @@ model UserInvite {
 
 model Client {
   id                      String                   @id @default(cuid())
+  orderId                 Int                      @default(autoincrement())
+  aniversario             String?
   companyId               String
   name                    String
   document                String?
   email                   String?
   phone                   String?
+  // Endereço
+  endRua                  String?
+  endNumero               String?
+  endBairro               String?
+  endCidade               String?
+  endEstado               String?
+  endCep                  String?
+  // Representante Legal
+  repNome                 String?
+  repRG                   String?
+  repCPF                  String?
+  repEstadoCivil          String?
+  // Testemunha
+  testNome                String?
+  testCPF                 String?
+  testEmail               String?
+  // Responsável Financeiro
+  finNome                 String?
+  finEmail                String?
+  finTelefone             String?
+  // Responsável Projeto
+  projNome                String?
+  projEmail               String?
+  projTelefone            String?
+  // Contrato
+  formaPagamento          String?
+  regimeTributario        String?
+  tipoProjeto             String?
+  servicosContratados     String?
   serviceType             ServiceType
   grossRevenue            Float
   taxRate                 Float                    @default(6.0)
@@ -142,6 +174,7 @@ model Client {
   company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   transactions            Transaction[]            @relation("ClientTransactions")
   collaboratorAllocations CollaboratorAllocation[]
+  partnerCommissions      PartnerCommission[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -344,21 +377,44 @@ enum PricingStatus {
 // ─── ALOCAÇÃO DE COLABORADORES ───────────────────────────────────────────────
 
 model Collaborator {
-  id            String                   @id @default(cuid())
-  companyId     String
-  name          String
-  position      String
-  type          CollaboratorType         @default(PJ)
-  salary        Float
-  hoursPerMonth Int                      @default(160)
-  avatarUrl     String?
-  isActive      Boolean                  @default(true)
-  notes         String?
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
-  runRunLink    RunRunUserLink?
-  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  allocations   CollaboratorAllocation[]
+  id               String                   @id @default(cuid())
+  companyId        String
+  name             String
+  position         String
+  type             CollaboratorType         @default(PJ)
+  salary           Float
+  hoursPerMonth    Int                      @default(160)
+  avatarUrl        String?
+  isActive         Boolean                  @default(true)
+  notes            String?
+  // Extended HR fields — v3.9
+  document         String?    // CPF
+  rg               String?
+  email            String?
+  phone            String?
+  birthDate        DateTime?
+  startDate        DateTime?
+  endDate          DateTime?
+  razaoSocial      String?
+  cnpj             String?
+  pixKey           String?
+  paymentMethod    String?
+  paymentDay       Int?
+  bankName         String?
+  bankAgency       String?
+  bankAccount      String?
+  bankAccountType  String?
+  address          String?
+  emergencyContact String?
+  emergencyPhone   String?
+  instagram        String?
+  nivelExperiencia String?
+  estadoCivil      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  runRunLink       RunRunUserLink?
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  allocations      CollaboratorAllocation[]
 
   @@index([companyId])
   @@map("collaborators")
@@ -461,6 +517,47 @@ model RunRunTimeEntry {
   @@map("runrun_time_entries")
 }
 
+// ─── PARCEIROS COMISSIONADOS ──────────────────────────────────────────────────
+
+model Partner {
+  id               String             @id @default(cuid())
+  companyId        String
+  name             String
+  email            String?
+  phone            String?
+  document         String?
+  pixKey           String?
+  bankName         String?
+  bankAgency       String?
+  bankAccount      String?
+  paymentDay       Int?
+  notes            String?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  commissions      PartnerCommission[]
+
+  @@index([companyId])
+  @@map("partners")
+}
+
+model PartnerCommission {
+  id          String   @id @default(cuid())
+  companyId   String
+  partnerId   String
+  clientId    String
+  pct         Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, clientId])
+  @@index([companyId])
+  @@map("partner_commissions")
+}
+
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -468,4 +565,45 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// ─── CONTA AZUL INTEGRATION ──────────────────────────────────────────────────
+
+model ContaAzulConfig {
+  id            String    @id @default(cuid())
+  companyId     String    @unique
+  accessToken   String    @db.Text
+  refreshToken  String    @db.Text
+  expiresAt     DateTime
+  lastSyncAt    DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("contaazul_configs")
+}
+
+model ContaAzulBill {
+  id              String   @id @default(cuid())
+  companyId       String
+  externalId      String
+  description     String
+  amount          Float
+  amountPaid      Float?
+  dueDate         DateTime
+  paymentDate     DateTime?
+  status          String
+  isRecurring     Boolean  @default(false)
+  categoryName    String?
+  supplierName    String?
+  notes           String?
+  monthRef        String
+  syncedAt        DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, externalId])
+  @@index([companyId])
+  @@index([companyId, monthRef])
+  @@map("contaazul_bills")
 }
