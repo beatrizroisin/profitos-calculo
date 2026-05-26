@@ -6,6 +6,9 @@ import { prisma } from '@/lib/prisma';
 const BASE_URL = 'https://api-v2.contaazul.com';
 
 async function getValidToken(companyId: string): Promise<string | null> {
+    const accessToken = await getValidToken(companyId);
+console.log('[contaazul sync] token preview:', accessToken?.slice(0, 50));
+
   const config = await prisma.contaAzulConfig.findUnique({ where: { companyId } });
   if (!config || !config.isActive) return null;
 
