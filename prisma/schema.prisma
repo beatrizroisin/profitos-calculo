@@ -169,6 +169,7 @@ model Client {
   status                  String                   @default("ACTIVE")
   riskLevel               RiskLevel                @default(LOW)
   notes                   String?
+  services                Json?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)

@@ -11,9 +11,7 @@ function buildClientEmail(client: any): string {
         <h1 style="color:white;margin:0;font-size:20px">✅ Cliente Ativado — profitOS</h1>
         <p style="color:#a7f3d0;margin:4px 0 0;font-size:13px">Ficha completa gerada automaticamente</p>
       </div>
-
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:24px">
-
         <h2 style="font-size:15px;color:#1A6B4A;margin:0 0 12px">📋 Identificação</h2>
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
           <tr><td style="padding:6px 0;color:#6b7280;width:40%">Razão Social</td><td style="padding:6px 0;font-weight:600">${client.name}</td></tr>
@@ -21,28 +19,14 @@ function buildClientEmail(client: any): string {
           <tr><td style="padding:6px 0;color:#6b7280">E-mail</td><td style="padding:6px 0">${client.email || '—'}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Telefone</td><td style="padding:6px 0">${client.phone || '—'}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Status</td><td style="padding:6px 0"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">ATIVO</span></td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Nível de risco</td><td style="padding:6px 0">${client.riskLevel}</td></tr>
         </table>
-
         <h2 style="font-size:15px;color:#1A6B4A;margin:0 0 12px">💰 Financeiro</h2>
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
           <tr><td style="padding:6px 0;color:#6b7280;width:40%">Faturamento bruto</td><td style="padding:6px 0;font-weight:600">R$ ${Number(client.grossRevenue).toLocaleString('pt-BR',{minimumFractionDigits:2})}/mês</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Alíquota imposto</td><td style="padding:6px 0">${client.taxRate}%</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Receita líquida</td><td style="padding:6px 0;font-weight:600;color:#1A6B4A">R$ ${Number(client.netRevenue).toLocaleString('pt-BR',{minimumFractionDigits:2})}/mês</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Tipo de contrato</td><td style="padding:6px 0">${client.isRecurring ? 'Recorrente (mensalidade)' : 'Pontual (projeto)'}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Parcelas</td><td style="padding:6px 0">${client.currentInstallment}/${client.totalInstallments || '∞'}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Dia de vencimento</td><td style="padding:6px 0">Dia ${client.dueDay}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Data de início</td><td style="padding:6px 0">${new Date(client.startDate).toLocaleDateString('pt-BR')}</td></tr>
         </table>
-
-        ${client.notes ? `
-        <h2 style="font-size:15px;color:#1A6B4A;margin:0 0 12px">📝 Observações / Dados Contratuais</h2>
-        <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:14px;font-size:12px;line-height:1.8;color:#374151;white-space:pre-line">${client.notes}</div>
-        ` : ''}
-
-        <p style="font-size:11px;color:#9ca3af;margin-top:24px;text-align:center">
-          Gerado automaticamente pelo profitOS ao ativar o cliente · ${new Date().toLocaleString('pt-BR')}
-        </p>
+        ${client.notes ? `<h2 style="font-size:15px;color:#1A6B4A;margin:0 0 12px">📝 Observações</h2><div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:14px;font-size:12px;line-height:1.8;color:#374151;white-space:pre-line">${client.notes}</div>` : ''}
+        <p style="font-size:11px;color:#9ca3af;margin-top:24px;text-align:center">Gerado automaticamente pelo profitOS · ${new Date().toLocaleString('pt-BR')}</p>
       </div>
     </div>
   `;
@@ -56,18 +40,52 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const body = await req.json();
 
-    // Busca o cliente ANTES de atualizar para saber o status anterior
     const existing = await prisma.client.findFirst({ where: { id: params.id, companyId } });
     if (!existing) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
 
-    const netRevenue = body.grossRevenue * (1 - body.taxRate / 100);
+    // Extrai services e campos que vêm do primeiro serviço
+    const { services, ...rest } = body;
+
+    // Pega campos do primeiro serviço para manter compatibilidade com raiz
+    const firstService = Array.isArray(services) && services.length > 0 ? services[0] : null;
+
+    const grossRevenue      = body.grossRevenue ?? 0;
+    const taxRate           = body.taxRate ?? 6;
+    const netRevenue        = grossRevenue * (1 - taxRate / 100);
+    const isRecurring       = firstService?.isRecurring       ?? body.isRecurring       ?? true;
+    const totalInstallments = firstService?.totalInstallments ?? body.totalInstallments ?? 12;
+    const currentInstallment= firstService?.currentInstallment?? body.currentInstallment?? 1;
+    const dueDay            = firstService?.dueDay            ?? body.dueDay            ?? 5;
+    const startDate         = new Date(firstService?.startDate ?? body.startDate ?? new Date());
+    const riskLevel         = firstService?.riskLevel         ?? body.riskLevel         ?? 'LOW';
+
+    // Remove campos que não existem no schema para não dar erro no Prisma
+    const {
+      isRecurring: _ir, totalInstallments: _ti, currentInstallment: _ci,
+      dueDay: _dd, startDate: _sd, riskLevel: _rl,
+      orderId: _oid, createdAt: _ca, updatedAt: _ua, id: _id,
+      ...cleanRest
+    } = rest;
 
     const updated = await prisma.client.update({
       where: { id: params.id },
-      data: { ...body, netRevenue, startDate: new Date(body.startDate), email: body.email || null },
+      data: {
+        ...cleanRest,
+        netRevenue,
+        grossRevenue,
+        taxRate,
+        isRecurring,
+        totalInstallments,
+        currentInstallment,
+        dueDay,
+        startDate,
+        riskLevel,
+        email: body.email || null,
+        services: services ?? undefined,
+      },
     });
 
-    // Dispara email se estava em PROSPECT/PIPELINE e foi ativado como ACTIVE
+    // Dispara email se mudou para ACTIVE
     const wasInactive = ['PROSPECT', 'PIPELINE', 'INACTIVE'].includes(existing.status);
     const nowActive   = body.status === 'ACTIVE';
 
@@ -82,7 +100,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           html: buildClientEmail(updated),
         });
       } catch (emailErr) {
-        // Email falhou mas não derruba o update
         console.error('[email] Falha ao enviar notificação de ativação:', emailErr);
       }
     }
