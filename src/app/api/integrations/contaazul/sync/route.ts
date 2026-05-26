@@ -7,14 +7,26 @@ const BASE_URL = 'https://api-v2.contaazul.com';
 
 async function getValidToken(companyId: string): Promise<string | null> {
   const config = await prisma.contaAzulConfig.findUnique({ where: { companyId } });
-  if (!config || !config.isActive) return null;
+  if (!config || !config.isActive) {
+    console.error('[contaazul token] config not found or inactive');
+    return null;
+  }
 
-  if (config.expiresAt > new Date()) return config.accessToken;
+  if (config.expiresAt > new Date()) {
+    console.log('[contaazul token] token still valid');
+    return config.accessToken;
+  }
+
+  console.log('[contaazul token] token expired, refreshing...');
+  console.log('[contaazul token] clientId exists:', !!process.env.CONTAAZUL_CLIENT_ID);
+  console.log('[contaazul token] clientSecret exists:', !!process.env.CONTAAZUL_CLIENT_SECRET);
 
   try {
     const clientId     = process.env.CONTAAZUL_CLIENT_ID!;
     const clientSecret = process.env.CONTAAZUL_CLIENT_SECRET!;
     const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    console.log('[contaazul token] credentials preview:', credentials.slice(0, 20));
 
     const res = await fetch('https://auth.contaazul.com/oauth2/token', {
       method: 'POST',
@@ -28,12 +40,13 @@ async function getValidToken(companyId: string): Promise<string | null> {
       }),
     });
 
-    if (!res.ok) {
-      console.error('[contaazul token] refresh failed:', res.status, await res.text());
-      return null;
-    }
+    const responseText = await res.text();
+    console.log('[contaazul token] refresh status:', res.status);
+    console.log('[contaazul token] refresh response:', responseText.slice(0, 200));
 
-    const tokens    = await res.json();
+    if (!res.ok) return null;
+
+    const tokens    = await res.json().catch(() => JSON.parse(responseText));
     const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000);
 
     await prisma.contaAzulConfig.update({
@@ -46,7 +59,7 @@ async function getValidToken(companyId: string): Promise<string | null> {
       },
     });
 
-    console.log('[contaazul token] refreshed successfully');
+    console.log('[contaazul token] refreshed successfully, expires:', expiresAt);
     return tokens.access_token;
   } catch (e: any) {
     console.error('[contaazul token] refresh error:', e?.message);
