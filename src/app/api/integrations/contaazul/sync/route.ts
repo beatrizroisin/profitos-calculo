@@ -69,11 +69,13 @@ async function fetchBillsForMonth(
   const url = `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`;
   console.log('[contaazul sync] GET', url);
 
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
+const res = await fetch(url, {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Accept': 'application/json',
+  },
+  redirect: 'follow',
+});
 
   console.log('[contaazul sync] status:', res.status);
   const text = await res.text();
