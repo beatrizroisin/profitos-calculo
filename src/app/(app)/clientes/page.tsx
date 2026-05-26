@@ -5,9 +5,17 @@ import { useSearchParams } from 'next/navigation';
 import { Card, Grid4, KPICard, Button, Alert, Pill } from '@/components/ui';
 import { BRL, SERVICE_TYPE_LABELS, RISK_LABELS, STATUS_LABELS } from '@/lib/utils';
 
+interface ServiceItem {
+  serviceType: string;
+  grossRevenue: number;
+  taxRate: number;
+  netRevenue: number;
+}
+
 interface Client {
   id: string; orderId?: number; name: string; document?: string; email?: string; phone?: string;
   serviceType: string; grossRevenue: number; taxRate: number; netRevenue: number;
+  services?: ServiceItem[]; // Nova lista para múltiplos serviços
   isRecurring: boolean; totalInstallments: number; currentInstallment: number;
   startDate: string; dueDay: number; status: string; riskLevel: string; notes?: string;
   endRua?: string; endNumero?: string; endBairro?: string;
@@ -21,10 +29,18 @@ interface Client {
   aniversario?: string;
 }
 
+const EMPTY_SERVICE: ServiceItem = {
+  serviceType: 'ECOMMERCE_MANAGEMENT',
+  grossRevenue: 0,
+  taxRate: 6,
+  netRevenue: 0
+};
+
 const EMPTY: Omit<Client, 'id'> = {
-  name: '', document: '', email: '', phone: '', serviceType: 'ECOMMERCE_MANAGEMENT',
-  grossRevenue: 0, taxRate: 6, netRevenue: 0, isRecurring: true,
-  totalInstallments: 12, currentInstallment: 1,
+  name: '', document: '', email: '', phone: '',
+  serviceType: 'ECOMMERCE_MANAGEMENT', grossRevenue: 0, taxRate: 6, netRevenue: 0,
+  services: [{ ...EMPTY_SERVICE }], // Inicializa com um serviço
+  isRecurring: true, totalInstallments: 12, currentInstallment: 1,
   startDate: new Date().toISOString().slice(0, 10),
   dueDay: 5, status: 'ACTIVE', riskLevel: 'LOW', notes: '',
   endRua: '', endNumero: '', endBairro: '', endCidade: '', endEstado: '', endCep: '',
@@ -70,24 +86,72 @@ export default function ClientesPage() {
     if (statusFilter) params.set('status', statusFilter);
     if (search)       params.set('search', search);
     const res = await fetch(`/api/clients?${params}`);
-if (res.ok) {
-  const data = await res.json();
-  setClients(data.sort((a: any, b: any) => (a.orderId ?? 0) - (b.orderId ?? 0)));
-}
+    if (res.ok) {
+      const data = await res.json();
+      setClients(data.sort((a: any, b: any) => (a.orderId ?? 0) - (b.orderId ?? 0)));
+    }
     setLoading(false);
   }
 
+  // Função padrão para atualizar campos gerais da raiz
   const F = (k: string, v: any) => {
+    setForm(f => ({ ...f, [k]: v }));
+  };
+
+  // Nova função para atualizar um serviço específico dentro do array dinâmico
+  const updateServiceField = (index: number, key: keyof ServiceItem, value: any) => {
     setForm(f => {
-      const next = { ...f, [k]: v };
-      next.netRevenue = next.grossRevenue * (1 - next.taxRate / 100);
-      return next;
+      const updatedServices = [...(f.services || [])];
+      updatedServices[index] = { ...updatedServices[index], [key]: value };
+      
+      // Recalcula o líquido deste serviço específico
+      if (key === 'grossRevenue' || key === 'taxRate') {
+        const gross = key === 'grossRevenue' ? parseFloat(value) || 0 : updatedServices[index].grossRevenue;
+        const tax = key === 'taxRate' ? parseFloat(value) || 0 : updatedServices[index].taxRate;
+        updatedServices[index].netRevenue = gross * (1 - tax / 100);
+      }
+
+      // IMPORTANTE: Sincroniza os totais e o primeiro serviço na raiz para manter compatibilidade com tabelas/cards antigos
+      const totalGross = updatedServices.reduce((acc, curr) => acc + curr.grossRevenue, 0);
+      const totalNet = updatedServices.reduce((acc, curr) => acc + curr.netRevenue, 0);
+
+      return {
+        ...f,
+        services: updatedServices,
+        // Mantém compatibilidade retroativa na raiz do objeto se sua API exigir
+        serviceType: updatedServices[0]?.serviceType || f.serviceType,
+        grossRevenue: totalGross,
+        netRevenue: totalNet,
+        taxRate: updatedServices[0]?.taxRate || f.taxRate
+      };
+    });
+  };
+
+  const addService = () => {
+    setForm(f => ({
+      ...f,
+      services: [...(f.services || []), { ...EMPTY_SERVICE }]
+    }));
+  };
+
+  const removeService = (index: number) => {
+    if ((form.services || []).length <= 1) return; // Não deixa deletar se só tiver um
+    setForm(f => {
+      const updatedServices = (f.services || []).filter((_, i) => i !== index);
+      const totalGross = updatedServices.reduce((acc, curr) => acc + curr.grossRevenue, 0);
+      const totalNet = updatedServices.reduce((acc, curr) => acc + curr.netRevenue, 0);
+      return {
+        ...f,
+        services: updatedServices,
+        grossRevenue: totalGross,
+        netRevenue: totalNet
+      };
     });
   };
 
   function openNew() {
     setEditId(null);
-    setForm({ ...EMPTY, startDate: new Date().toISOString().slice(0, 10) });
+    setForm({ ...EMPTY, startDate: new Date().toISOString().slice(0, 10), services: [{ ...EMPTY_SERVICE }] });
     setShowExtra(false);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -95,7 +159,12 @@ if (res.ok) {
 
   function openEdit(c: Client) {
     setEditId(c.id);
-    setForm({ ...EMPTY, ...c, startDate: c.startDate.slice(0, 10) });
+    // Se o cliente vindo do banco não tiver a propriedade de array "services", injetamos o atual da raiz para não quebrar o formulário
+    const clientServices = c.services && c.services.length > 0 
+      ? c.services 
+      : [{ serviceType: c.serviceType, grossRevenue: c.grossRevenue, taxRate: c.taxRate, netRevenue: c.netRevenue }];
+
+    setForm({ ...EMPTY, ...c, startDate: c.startDate.slice(0, 10), services: clientServices });
     setShowExtra(!!(c.repNome || c.endRua || c.finNome));
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -166,15 +235,6 @@ if (res.ok) {
           </button>
         </div>
       )}
-      {pipeline.length === 0 && !showForm && (
-        <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-          <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-1"/>
-          <p className="text-xs text-gray-600">
-            <strong>Pipeline:</strong> cadastre um cliente com status{' '}
-            <span className="font-medium text-blue-700">🔵 Possível Entrada (Pipeline)</span> para acompanhar oportunidades.
-          </p>
-        </div>
-      )}
 
       {/* ── FORM ── */}
       {showForm && (
@@ -214,6 +274,7 @@ if (res.ok) {
               )}
             </div>
 
+            {/* Row Antiga Modificada — Contém agora E-mail, Telefone e Status (no lugar do tipo de serviço) */}
             <div className="grid grid-cols-3 gap-3 mb-3">
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">E-mail</label>
@@ -222,33 +283,6 @@ if (res.ok) {
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Telefone</label>
                 <input className={I} placeholder="(11) 99999-0000" value={form.phone||''} onChange={e => F('phone', e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Tipo de serviço *</label>
-                <select required className={I} value={form.serviceType} onChange={e => F('serviceType', e.target.value)}>
-                  {Object.entries(SERVICE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Row 2 — financeiro */}
-            <div className="grid grid-cols-4 gap-3 mb-3">
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Faturamento bruto (R$) *</label>
-                <input required type="number" min="0" step="0.01" className={I} placeholder="0,00" value={form.grossRevenue||''} onChange={e => F('grossRevenue', parseFloat(e.target.value)||0)} />
-                <p className="text-[10px] text-gray-400 mt-1">Valor emitido na nota fiscal</p>
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Alíquota (%)</label>
-                <input type="number" min="0" max="100" step="0.1" className={I} value={form.taxRate} onChange={e => F('taxRate', parseFloat(e.target.value)||0)} />
-                <p className="text-[10px] text-gray-400 mt-1">Simples Nacional ≈ 6%</p>
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Valor líquido</label>
-                <div className={`${I} bg-green-50 border-green-200 text-green-800 font-medium cursor-default`}>
-                  {form.grossRevenue > 0 ? BRL(form.netRevenue) : '—'}
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1">Imposto: {form.grossRevenue > 0 ? BRL(form.grossRevenue - form.netRevenue) : '—'}/mês</p>
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
@@ -260,6 +294,58 @@ if (res.ok) {
                   <option value="CHURNED">🔴 Churned — cancelou</option>
                 </select>
               </div>
+            </div>
+
+            {/* Bloco de Serviços Dinâmicos */}
+            <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-200/60 mb-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Serviços Contratados Financeiro</p>
+              </div>
+              
+              {(form.services || []).map((service, index) => (
+                <div key={index} className="grid grid-cols-4 gap-3 items-start pb-4 border-b border-gray-100 last:border-0 last:pb-0 relative">
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Faturamento bruto (R$) *</label>
+                    <input required type="number" min="0" step="0.01" className={I} placeholder="0,00" value={service.grossRevenue || ''} onChange={e => updateServiceField(index, 'grossRevenue', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Alíquota (%)</label>
+                    <input type="number" min="0" max="100" step="0.1" className={I} value={service.taxRate} onChange={e => updateServiceField(index, 'taxRate', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Valor líquido</label>
+                    <div className={`${I} bg-green-50 border-green-200 text-green-800 font-medium cursor-default`}>
+                      {service.grossRevenue > 0 ? BRL(service.netRevenue) : '—'}
+                    </div>
+                  </div>
+                  <div className="pr-8">
+                    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Tipo de serviço *</label>
+                    <select required className={I} value={service.serviceType} onChange={e => updateServiceField(index, 'serviceType', e.target.value)}>
+                      {Object.entries(SERVICE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Botão de excluir serviço se houver mais de um */}
+                  {(form.services || []).length > 1 && (
+                    <button 
+                      type="button" 
+                      onClick={() => removeService(index)}
+                      className="absolute right-0 top-8 text-gray-400 hover:text-red-500 transition-colors text-sm font-bold"
+                      title="Remover este serviço"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              <button 
+                type="button" 
+                onClick={addService}
+                className="mt-2 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1A6B4A] bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors w-full sm:w-auto"
+              >
+                + Inserir mais serviço
+              </button>
             </div>
 
             {/* Row 3 — contrato */}
@@ -289,42 +375,41 @@ if (res.ok) {
               </div>
             </div>
 
-{/* Row 3 — contrato & Observações */}
-<div className="grid grid-cols-3 gap-3 mb-4">
-  <div>
-    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Data de início</label>
-    <input type="date" className={I} value={form.startDate} onChange={e => F('startDate', e.target.value)} />
-  </div>
-  <div>
-    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nível de risco</label>
-    <select className={I} value={form.riskLevel} onChange={e => F('riskLevel', e.target.value)}>
-      <option value="LOW">Baixo</option>
-      <option value="MEDIUM">Médio</option>
-      <option value="HIGH">Alto</option>
-      <option value="CRITICAL">Crítico</option>
-    </select>
-  </div>
-  
-  {/* Campo de Observações ocupando a linha de baixo sozinha e com área de texto maior */}
-  <div className="col-span-full mt-2">
-    <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Observações</label>
-    <textarea 
-      className={`${I} min-h-[100px] resize-y`} 
-      placeholder="Notas internas detalhadas..." 
-      value={form.notes || ''} 
-      onChange={e => F('notes', e.target.value)}
-    />
-  </div>
-</div>
+            {/* Contrato & Observações */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Data de início</label>
+                <input type="date" className={I} value={form.startDate} onChange={e => F('startDate', e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nível de risco</label>
+                <select className={I} value={form.riskLevel} onChange={e => F('riskLevel', e.target.value)}>
+                  <option value="LOW">Baixo</option>
+                  <option value="MEDIUM">Médio</option>
+                  <option value="HIGH">Alto</option>
+                  <option value="CRITICAL">Crítico</option>
+                </select>
+              </div>
+              
+              <div className="col-span-full mt-2">
+                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Observações</label>
+                <textarea 
+                  className={`${I} min-h-[100px] resize-y`} 
+                  placeholder="Notas internas detalhadas..." 
+                  value={form.notes || ''} 
+                  onChange={e => F('notes', e.target.value)}
+                />
+              </div>
+            </div>
 
-            {/* Preview financeira */}
+            {/* Preview financeira baseada na soma total dos serviços */}
             {form.grossRevenue > 0 && (
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-4">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Prévia financeira</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Prévia financeira consolidada</p>
                 <div className="grid grid-cols-4 gap-4">
-                  <div><p className="text-[10px] text-gray-400">Bruto/mês</p><p className="text-sm font-semibold text-gray-800">{BRL(form.grossRevenue)}</p></div>
-                  <div><p className="text-[10px] text-gray-400">Imposto ({form.taxRate}%)/mês</p><p className="text-sm font-semibold text-amber-600">–{BRL(form.grossRevenue - form.netRevenue)}</p></div>
-                  <div><p className="text-[10px] text-gray-400">Líquido/mês</p><p className="text-sm font-semibold text-green-700">{BRL(form.netRevenue)}</p></div>
+                  <div><p className="text-[10px] text-gray-400">Bruto Total/mês</p><p className="text-sm font-semibold text-gray-800">{BRL(form.grossRevenue)}</p></div>
+                  <div><p className="text-[10px] text-gray-400">Total Imposto/mês</p><p className="text-sm font-semibold text-amber-600">–{BRL(form.grossRevenue - form.netRevenue)}</p></div>
+                  <div><p className="text-[10px] text-gray-400">Líquido Total/mês</p><p className="text-sm font-semibold text-green-700">{BRL(form.netRevenue)}</p></div>
                   <div><p className="text-[10px] text-gray-400">{form.isRecurring ? `Total (${form.totalInstallments}x)` : 'Total projeto'}</p><p className="text-sm font-semibold text-blue-700">{BRL(form.isRecurring ? form.netRevenue * form.totalInstallments : form.netRevenue)}</p></div>
                 </div>
               </div>
@@ -529,7 +614,13 @@ if (res.ok) {
                           {String(c.orderId ?? 0).padStart(3, '0')}
                         </span>
                       </td>
-                      <td className="py-3 text-gray-500 max-w-[130px]"><span className="truncate block">{SERVICE_TYPE_LABELS[c.serviceType]}</span></td>
+                      <td className="py-3 text-gray-500 max-w-[130px]">
+                        <span className="truncate block">
+                          {c.services && c.services.length > 1 
+                            ? `${SERVICE_TYPE_LABELS[c.services[0].serviceType]} (+${c.services.length - 1})` 
+                            : SERVICE_TYPE_LABELS[c.serviceType]}
+                        </span>
+                      </td>
                       <td className="py-3 text-right text-gray-500">{BRL(c.grossRevenue)}</td>
                       <td className="py-3 text-right text-amber-600">–{BRL(imp)}<br/><span className="text-[10px] text-gray-400">({c.taxRate}%)</span></td>
                       <td className="py-3 text-right font-medium text-green-700">{BRL(c.netRevenue)}</td>
@@ -549,15 +640,6 @@ if (res.ok) {
                   );
                 })}
               </tbody>
-              <tfoot>
-                <tr className="border-t border-gray-100 bg-gray-50">
-                  <td colSpan={3} className="px-5 py-2.5 text-[11px] text-gray-500 font-medium">{clients.length} clientes</td>
-                  <td className="py-2.5 text-right text-[11px] font-medium text-gray-700">{BRL(clients.reduce((s,c)=>s+c.grossRevenue,0))}</td>
-                  <td className="py-2.5 text-right text-[11px] font-medium text-amber-600">–{BRL(clients.reduce((s,c)=>s+(c.grossRevenue-c.netRevenue),0))}</td>
-                  <td className="py-2.5 text-right text-[11px] font-medium text-green-700">{BRL(clients.reduce((s,c)=>s+c.netRevenue,0))}</td>
-                  <td colSpan={4}></td>
-                </tr>
-              </tfoot>
             </table>
           </div>
         )}
