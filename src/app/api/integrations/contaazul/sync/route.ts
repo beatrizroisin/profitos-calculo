@@ -60,19 +60,18 @@ async function fetchBillsForMonth(
   endDate: string
 ): Promise<any[]> {
   const allBills: any[] = [];
-  let pagina = 0;
-  const quantidade = 100;
+  let page = 0;
 
   while (true) {
     const params = new URLSearchParams({
       data_vencimento_de:  startDate,
       data_vencimento_ate: endDate,
-      pagina:              String(pagina),
-      quantidade:          String(quantidade),
+      page:                String(page),
+      size:                '10',
     });
 
     const url = `${BASE_URL}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`;
-    console.log('[contaazul sync] GET', url);
+    console.log('[contaazul sync] GET page', page, url);
 
     const res = await fetch(url, {
       headers: {
@@ -82,28 +81,24 @@ async function fetchBillsForMonth(
       redirect: 'follow',
     });
 
-    console.log('[contaazul sync] status:', res.status);
-
     if (!res.ok) {
-      console.error('[contaazul sync] error:', res.status);
+      console.error('[contaazul sync] error page', page, res.status);
       break;
     }
 
     const data = await res.json();
-    const itens = data.itens ?? data.content ?? data.items ?? data.data ?? [];
-    
-    allBills.push(...itens);
-    console.log(`[contaazul sync] página ${pagina}: ${itens.length} itens, total acumulado: ${allBills.length}`);
+    const itens = data.itens ?? [];
+    const total = data.itens_totais ?? 0;
 
-    // Se veio menos que o tamanho da página, acabou
-    if (itens.length < quantidade) break;
-    
-    pagina++;
+    allBills.push(...itens);
+    console.log(`[contaazul sync] page ${page}: ${itens.length} itens, acumulado: ${allBills.length}/${total}`);
+
+    if (allBills.length >= total || itens.length === 0) break;
+    page++;
   }
 
   return allBills;
 }
-
 export async function POST(req: NextRequest) {
   let companyId: string;
 
