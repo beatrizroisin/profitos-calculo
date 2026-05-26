@@ -141,9 +141,15 @@ export async function POST(req: NextRequest) {
 
         const rawStatus = (bill.status ?? '').toUpperCase();
         const status    =
-          rawStatus === 'ACQUITTED' ? 'PAID'
-          : rawStatus === 'OVERDUE'   ? 'OVERDUE'
-          : rawStatus === 'CANCELLED' ? 'CANCELLED'
+          rawStatus === 'ACQUITTED'          ? 'PAID'
+          : rawStatus === 'OVERDUE'          ? 'OVERDUE'
+          : rawStatus === 'RECEBIDO'         ? 'PAID'
+          : rawStatus === 'ATRASADO'         ? 'OVERDUE'
+          : rawStatus === 'EM_ABERTO'        ? 'PENDING'
+          : rawStatus === 'RENEGOCIADO'      ? 'PENDING'
+          : rawStatus === 'RECEBIDO_PARCIAL' ? 'PARTIAL'
+          : rawStatus === 'PERDIDO'          ? 'CANCELLED'
+          : rawStatus === 'CANCELLED'        ? 'CANCELLED'
           : 'PENDING';
 
         const externalId   = String(bill.id);

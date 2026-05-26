@@ -14,8 +14,8 @@ interface Bill {
 
 interface ContaAzulStatus { connected: boolean; lastSyncAt: string | null; }
 
-const STATUS_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', OVERDUE: 'red', CANCELLED: 'gray' };
-const STATUS_LABEL: Record<string, string> = { PENDING: 'Pendente', PAID: 'Pago', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' };
+const STATUS_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', PARTIAL: 'blue', OVERDUE: 'red', CANCELLED: 'gray' };
+const STATUS_LABEL: Record<string, string> = { PENDING: 'Em aberto', PAID: 'Pago', PARTIAL: 'Pago parcial', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' };
 
 export default function PagarPage() {
   const now = new Date();
@@ -104,7 +104,7 @@ export default function PagarPage() {
   const today    = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
   const overdue  = filtered.filter(b => b.status === 'OVERDUE');
   const pending  = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
-  const paid     = filtered.filter(b => b.status === 'PAID' || b.status === 'ACQUITTED');
+  const paid = filtered.filter(b => b.status === 'PAID' || b.status === 'PARTIAL');
   const total    = filtered.reduce((s, b) => s + b.amount, 0);
 
   const emAberto = filtered.filter(b => b.status === 'OVERDUE' || b.status === 'PENDING');
