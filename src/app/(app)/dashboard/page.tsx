@@ -25,7 +25,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const thisMonth    = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonth    = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const [clients, collaborators, txExpenseAgg, txExpensePending, txOverdue, txPaidThisMonth, partners] = await Promise.all([
+  const [clients, collaborators, txExpenseAgg, txExpensePending, txOverdue, txPaidThisMonth, partners, contaAzulBills] = await Promise.all([
     prisma.client.findMany({ where: { companyId } }),
     prisma.collaborator.findMany({ where: { companyId, isActive: true }, select: { salary: true, name: true } }),
     prisma.transaction.aggregate({ where: { companyId, type: 'EXPENSE', status: { not: 'CANCELLED' } }, _sum: { amount: true } }),
@@ -33,6 +33,15 @@ export default async function DashboardPage({ searchParams }: Props) {
     prisma.transaction.findMany({ where: { companyId, type: 'INCOME', status: 'OVERDUE' }, select: { amount: true, description: true, clientId: true, dueDate: true, client: { select: { name: true } } } }),
     prisma.transaction.findMany({ where: { companyId, type: 'INCOME', status: 'PAID', paidAt: { gte: thisMonth, lt: nextMonth } }, select: { clientId: true } }),
     prisma.partner.findMany({ where: { companyId, isActive: true }, include: { commissions: { include: { client: { select: { netRevenue: true } } } } } }),
+    prisma.contaAzulBill.findMany({
+      where: {
+        companyId,
+        monthRef: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+        status: { not: 'CANCELLED' },
+      },
+      select: { amount: true, status: true, categoryName: true },
+    }),
+  
   ]);
 
   const active   = clients.filter(c => c.status === 'ACTIVE');
@@ -49,8 +58,20 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   // Costs
   const folhaTotal        = collaborators.reduce((s, c) => s + c.salary, 0);
-  const despesasLancadas  = txExpenseAgg._sum.amount ?? 0;
-  const despesasPendentes = txExpensePending._sum.amount ?? 0;
+  // const despesasLancadas  = txExpenseAgg._sum.amount ?? 0;
+  // const despesasPendentes = txExpensePending._sum.amount ?? 0;
+  const CATS_PESSOAL = ['Remuneração de Pessoa Jurídica (PJ)', 'Antecipação de Lucros', 'Pró-labore'];
+
+  const despesasContaAzul = contaAzulBills
+    .filter(b => !CATS_PESSOAL.some(cat => (b.categoryName ?? '').toLowerCase().includes(cat.toLowerCase())))
+    .reduce((s, b) => s + b.amount, 0);
+
+  const despesasLancadas  = despesasContaAzul > 0 ? despesasContaAzul : (txExpenseAgg._sum.amount ?? 0);
+  const despesasPendentes = contaAzulBills
+    .filter(b => b.status !== 'PAID' && b.status !== 'PARTIAL' && b.status !== 'CANCELLED')
+    .filter(b => !CATS_PESSOAL.some(cat => (b.categoryName ?? '').toLowerCase().includes(cat.toLowerCase())))
+    .reduce((s, b) => s + b.amount, 0);
+    
   const totalCustoMensal  = folhaTotal + despesasLancadas;
 
   // Comissões de parceiros

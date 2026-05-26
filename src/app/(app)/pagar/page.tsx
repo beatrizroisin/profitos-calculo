@@ -121,7 +121,16 @@ export default function PagarPage() {
   const hojeAmt      = venceHoje.reduce((s, b) => s + b.amount, 0);
   const aVencerAmt   = aVencer.reduce((s, b)   => s + b.amount, 0);
   const pagosAmt     = pagos.reduce((s, b)     => s + (b.amountPaid ?? b.amount), 0);
-  const totalAmt     = filtered.reduce((s, b)  => s + b.amount, 0);
+    // Categorias a excluir do total
+  const CATEGORIAS_EXCLUIR = [
+    'Remuneração de Pessoa Jurídica (PJ)',
+    'Antecipação de Lucros',
+    'Pró-labore',
+  ];
+
+  const totalAmt = filtered
+    .filter(b => !CATEGORIAS_EXCLUIR.includes(b.categoryName ?? ''))
+    .reduce((s, b) => s + b.amount, 0);
 
   // status visual na tabela — derivado de data
   function getBillStatus(b: Bill): string {
