@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, Grid4, KPICard, Alert, Button, Pill } from '@/components/ui';
 import { BRL } from '@/lib/utils';
 
@@ -18,23 +18,35 @@ const STATUS_PILL:  Record<string, any>    = { PENDING: 'amber', PAID: 'green', 
 const STATUS_LABEL: Record<string, string> = { PENDING: 'Pendente', PAID: 'Pago', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' };
 
 export default function PagarPage() {
-  const now          = new Date();
-  const [year, setYear]   = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
 
+  const [year, setYear]         = useState(now.getFullYear());
+  const [month, setMonth]       = useState(now.getMonth() + 1);
   const [bills, setBills]       = useState<Bill[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
   const [status, setStatus]     = useState<ContaAzulStatus>({ connected: false, lastSyncAt: null });
   const [loading, setLoading]   = useState(true);
   const [syncing, setSyncing]   = useState(false);
   const [saved, setSaved]       = useState('');
   const [search, setSearch]     = useState('');
   const [statusF, setStatusF]   = useState('');
+  const [supplierF, setSupplierF] = useState('');
+  const [showSupplierDrop, setShowSupplierDrop] = useState(false);
+  const supplierRef = useRef<HTMLDivElement>(null);
 
-  const monthRef = `${year}-${String(month).padStart(2, '0')}`;
+  const monthRef  = `${year}-${String(month).padStart(2, '0')}`;
   const monthName = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 
   useEffect(() => { fetchStatus(); }, []);
-  useEffect(() => { if (status.connected) fetchBills(); }, [monthRef, statusF, search, status.connected]);
+  useEffect(() => { if (status.connected) { fetchBills(); fetchSuppliers(); } }, [monthRef, status.connected]);
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) setShowSupplierDrop(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   async function fetchStatus() {
     const res = await fetch('/api/integrations/contaazul/status');
@@ -42,11 +54,14 @@ export default function PagarPage() {
     setLoading(false);
   }
 
+  async function fetchSuppliers() {
+    const res = await fetch(`/api/integrations/contaazul/bills?type=suppliers&monthRef=${monthRef}`);
+    if (res.ok) setSuppliers(await res.json());
+  }
+
   async function fetchBills() {
     setLoading(true);
     const params = new URLSearchParams({ monthRef });
-    if (statusF) params.set('status', statusF);
-    if (search)  params.set('search', search);
     const res = await fetch(`/api/integrations/contaazul/bills?${params}`);
     if (res.ok) setBills(await res.json());
     setLoading(false);
@@ -72,24 +87,31 @@ export default function PagarPage() {
     if (month === 1) { setMonth(12); setYear(y => y - 1); }
     else setMonth(m => m - 1);
   }
-
   function nextMonth() {
     if (month === 12) { setMonth(1); setYear(y => y + 1); }
     else setMonth(m => m + 1);
   }
 
+  // Filtros client-side
   const filtered = bills.filter(b => {
-    const matchS = !search || b.description.toLowerCase().includes(search.toLowerCase()) || (b.supplierName || '').toLowerCase().includes(search.toLowerCase());
+    const matchS = !search || b.description.toLowerCase().includes(search.toLowerCase()) || (b.supplierName || '').toLowerCase().includes(search.toLowerCase()) || (b.categoryName || '').toLowerCase().includes(search.toLowerCase());
     const matchF = !statusF || b.status === statusF;
-    return matchS && matchF;
+    const matchSup = !supplierF || b.supplierName === supplierF;
+    return matchS && matchF && matchSup;
   });
 
-  const pending = filtered.filter(b => b.status === 'PENDING').reduce((s, b) => s + b.amount, 0);
-  const paid    = filtered.filter(b => b.status === 'PAID').reduce((s, b) => s + (b.amountPaid || b.amount), 0);
-  const overdue = filtered.filter(b => b.status === 'OVERDUE');
-  const total   = filtered.reduce((s, b) => s + b.amount, 0);
+  // KPIs
+  const today    = filtered.filter(b => b.dueDate.slice(0,10) === todayStr);
+  const overdue  = filtered.filter(b => b.status === 'OVERDUE');
+  const pending  = filtered.filter(b => b.status === 'PENDING' && b.dueDate.slice(0,10) > todayStr);
+  const paid     = filtered.filter(b => b.status === 'PAID' || b.status === 'ACQUITTED');
+  const total    = filtered.reduce((s, b) => s + b.amount, 0);
 
-  // Não conectado — mostra tela de conexão
+  const overdueAmount  = overdue.reduce((s, b) => s + b.amount, 0);
+  const todayAmount    = today.reduce((s, b) => s + b.amount, 0);
+  const pendingAmount  = pending.reduce((s, b) => s + b.amount, 0);
+  const paidAmount     = paid.reduce((s, b) => s + (b.amountPaid ?? b.amount), 0);
+
   if (!loading && !status.connected) {
     return (
       <div className="space-y-5">
@@ -131,44 +153,110 @@ export default function PagarPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={syncNow} disabled={syncing}>
-            {syncing ? '⟳ Sincronizando...' : '⟳ Sincronizar'}
-          </Button>
-        </div>
+        <Button variant="secondary" onClick={syncNow} disabled={syncing}>
+          {syncing ? '⟳ Sincronizando...' : '⟳ Sincronizar'}
+        </Button>
       </div>
 
       {saved && <Alert variant={saved.includes('Erro') ? 'danger' : 'ok'}>{saved}</Alert>}
       {overdue.length > 0 && (
         <Alert variant="danger">
-          <strong>{overdue.length} lançamento(s) vencidos</strong> — {BRL(overdue.reduce((s, b) => s + b.amount, 0))} em atraso.
+          <strong>{overdue.length} lançamento(s) vencidos</strong> — {BRL(overdueAmount)} em atraso.
         </Alert>
       )}
 
-      {/* Navegação por mês */}
-      <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-2.5 w-fit">
-        <button onClick={prevMonth} className="text-gray-400 hover:text-gray-700 transition-colors">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center capitalize">{monthName}</span>
-        <button onClick={nextMonth} className="text-gray-400 hover:text-gray-700 transition-colors">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
+      {/* Filtros superiores */}
+      <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex flex-wrap gap-3 items-center">
+        {/* Navegação mês */}
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <span className="text-sm font-medium text-gray-700 capitalize min-w-[130px] text-center">{monthName}</span>
+          <button onClick={nextMonth} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        <div className="h-5 w-px bg-gray-200" />
+
+        {/* Pesquisa */}
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" placeholder="Pesquisar no período selecionado..." value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="flex-1 text-xs bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none" />
+          {search && (
+            <button onClick={() => setSearch('')} className="text-gray-300 hover:text-gray-500 text-xs">✕</button>
+          )}
+        </div>
+
+        {/* Filtro Fornecedor */}
+        <div className="relative" ref={supplierRef}>
+          <button onClick={() => setShowSupplierDrop(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs transition-colors ${supplierF ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            {supplierF || 'Fornecedor'}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          {showSupplierDrop && (
+            <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[220px] max-h-[280px] overflow-y-auto">
+              <div className="p-2">
+                <button onClick={() => { setSupplierF(''); setShowSupplierDrop(false); }}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-gray-50 ${!supplierF ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                  Selecionar todos
+                </button>
+                {suppliers.map(s => (
+                  <button key={s} onClick={() => { setSupplierF(s); setShowSupplierDrop(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-2 ${supplierF === s ? 'font-medium text-blue-600' : 'text-gray-700'}`}>
+                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${supplierF === s ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                      {supplierF === s && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>}
+                    </div>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {supplierF && (
+          <button onClick={() => setSupplierF('')} className="text-[11px] text-blue-600 hover:underline">Limpar filtros</button>
+        )}
       </div>
 
       {/* KPIs */}
-      <Grid4>
-        <KPICard label="Total do período" value={BRL(total)} sub={`${filtered.length} lançamentos`} color="red" accentColor="#DC3545" />
-        <KPICard label="Pendente" value={BRL(pending)} sub="aguardando pagamento" color="amber" />
-        <KPICard label="Pago" value={BRL(paid)} sub="lançamentos quitados" color="green" />
-        <KPICard label="Vencidos" value={String(overdue.length)} sub={overdue.length > 0 ? BRL(overdue.reduce((s, b) => s + b.amount, 0)) : 'nenhum vencido'} color={overdue.length > 0 ? 'red' : 'default'} />
-      </Grid4>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Vencidos (R$)</p>
+          <p className="text-xl font-bold text-red-500 tabular-nums mt-0.5">{BRL(overdueAmount)}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-red-400 font-medium uppercase tracking-wide">Vencem hoje (R$)</p>
+          <p className="text-xl font-bold text-red-400 tabular-nums mt-0.5">{BRL(todayAmount)}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-blue-400 font-medium uppercase tracking-wide">A vencer (R$)</p>
+          <p className="text-xl font-bold text-blue-500 tabular-nums mt-0.5">{BRL(pendingAmount)}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-green-500 font-medium uppercase tracking-wide">Pagos (R$)</p>
+          <p className="text-xl font-bold text-green-600 tabular-nums mt-0.5">{BRL(paidAmount)}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 md:col-span-1 col-span-2">
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Total do período (R$)</p>
+          <p className="text-xl font-bold text-blue-600 tabular-nums mt-0.5">{BRL(total)}</p>
+        </div>
+      </div>
 
-      {/* Tabela */}
+      {/* Filtros status */}
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-50 flex gap-3 items-center flex-wrap">
-          <input type="text" placeholder="Buscar fornecedor ou descrição..." value={search} onChange={e => setSearch(e.target.value)}
-            className="flex-1 min-w-[180px] px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#1A6B4A]" />
           <div className="flex bg-gray-100 rounded-lg p-0.5">
             {[['', 'Todos'], ['PENDING', 'Pendentes'], ['PAID', 'Pagos'], ['OVERDUE', 'Vencidos']].map(([v, l]) => (
               <button key={v} onClick={() => setStatusF(v)}
@@ -176,14 +264,13 @@ export default function PagarPage() {
               </button>
             ))}
           </div>
+          <span className="text-[11px] text-gray-400 ml-auto">{filtered.length} resultado(s)</span>
         </div>
 
         {loading ? (
           <div className="text-center py-12 text-sm text-gray-400">Carregando...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-sm text-gray-400">
-            Nenhum lançamento para {monthName}.
-          </div>
+          <div className="text-center py-12 text-sm text-gray-400">Nenhum lançamento para {monthName}.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs" style={{ minWidth: 760 }}>
@@ -228,7 +315,6 @@ export default function PagarPage() {
         )}
       </div>
 
-      {/* Badge Conta Azul */}
       <div className="flex items-center gap-2 text-[10px] text-gray-400">
         <div className="w-2 h-2 rounded-full bg-green-400"/>
         Dados sincronizados do Conta Azul · atualização automática diária
