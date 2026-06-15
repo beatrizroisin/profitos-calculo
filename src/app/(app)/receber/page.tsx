@@ -251,7 +251,7 @@ export default function ReceberPage() {
   const pagosAmt    = pagos.reduce((s, e)     => s + e.netRevenue, 0);
   const totalAmt    = filteredClients.reduce((s, e) => s + e.netRevenue, 0);
 
-  const uniqueClients = [...new Map(validEntries.map(e => [e.clientId, e.clientName])).entries()];
+  const uniqueClients = Array.from(new Map(validEntries.map(e => [e.clientId, e.clientName])).entries());
 
   const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:border-[#1A6B4A]';
   const lbl = 'block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5';
