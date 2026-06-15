@@ -43,7 +43,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
     projNome: '', projEmail: '', projTelefone: '',
     formaPagamento: 'Boleto', diaVencimento: '5',
     regimeTributario: '', tipoProjeto: '',
-    quantidadePagamentos: '12', valorMensal: '',
+
     servicosContratados: [] as string[],
   });
 
@@ -117,7 +117,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
     if (!f.projTelefone || f.projTelefone.includes('_')) errs.projTelefone = 'Telefone obrigatório';
     if (!f.regimeTributario)  errs.regimeTributario = 'Campo obrigatório';
     if (!f.tipoProjeto)       errs.tipoProjeto    = 'Campo obrigatório';
-    if (!f.valorMensal)       errs.valorMensal    = 'Campo obrigatório';
+ 
     if (f.servicosContratados.length === 0) errs.servicosContratados = 'Selecione ao menos um serviço';
     return errs;
   }
@@ -170,8 +170,8 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
           regimeTributario:     f.regimeTributario,
           tipoProjeto:          f.tipoProjeto,
           servicosContratados:  f.servicosContratados.join(', '),
-          quantidadePagamentos: f.quantidadePagamentos,
-          valorMensal:          parseFloat(f.valorMensal) || 0,
+
+
         }),
       });
 
@@ -424,16 +424,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
               </select>
               {fieldErrors.tipoProjeto && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.tipoProjeto}</p>}
             </div>
-            <div>
-              <label className={L}>Quantidade de parcelas *</label>
-              <input type="number" min="1" className={I} placeholder="12" value={f.quantidadePagamentos} onChange={set('quantidadePagamentos')} />
-            </div>
-            <div {...field('valorMensal')}>
-              <label className={L}>Valor da parcela (R$) *</label>
-              <input type="number" min="0" step="0.01" className={inp('valorMensal')} placeholder="0,00" value={f.valorMensal} onChange={set('valorMensal')} />
-              {fieldErrors.valorMensal && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.valorMensal}</p>}
-            </div>
-
+           
             <Sec t="Serviços Contratados" />
             <div className="col-span-2 space-y-2" {...field('servicosContratados')}>
               {fieldErrors.servicosContratados && <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>}

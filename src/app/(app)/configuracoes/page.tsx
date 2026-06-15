@@ -147,7 +147,7 @@ export default function ConfiguracoesPage() {
             <div className="pt-3 border-t border-gray-100">
               <Button variant="danger" size="sm" onClick={() => signOut({ callbackUrl: '/login' })}>Sair da conta</Button>
             </div>
-          </div>f
+          </div>
         </Card>
         <Card title="Empresa">
           <div className="space-y-3 text-sm">
