@@ -46,6 +46,8 @@ model CompanySettings {
   currency       String  @default("BRL")
   timezone       String  @default("America/Sao_Paulo")
   company        Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customServices  Json?
+  customPositions Json?
 
   @@map("company_settings")
 }

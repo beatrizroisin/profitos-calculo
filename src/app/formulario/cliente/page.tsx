@@ -7,19 +7,13 @@ const IE = 'w-full px-3 py-2.5 border border-red-400 rounded-lg text-sm bg-white
 const L = 'block text-[10px] font-bold text-gray-500 uppercase mb-1';
 const HELP = 'text-[9px] text-gray-400 mt-1 italic leading-tight';
 
-const SERVICOS = [
-  'Migração para VTEX IO com Redesign',
-  'Arquitetura de E-commerce',
-  'Implantação de E-commerce',
-  'Pacote de Evolução Básico — Suporte + Manutenção do Front end',
+const DEFAULT_SERVICOS = [
+  'Migração para VTEX IO com Redesign', 'Arquitetura de E-commerce',
+  'Implantação de E-commerce', 'Pacote de Evolução Básico — Suporte + Manutenção do Front end',
   'Pacote de Evolução Intermediário — Growth (CRO+SEO) + Suporte + Manutenção + UX',
   'Pacote de Evolução Avançado — Performance + Inbound + Growth + Suporte + UX',
-  'Plano de Evolução — Horas',
-  'Plano de Evolução — Semidedicado',
-  'Profissionais 100% Dedicados (Outsourcing)',
-  'SEO',
-  'Inbound Marketing',
-  'Performance',
+  'Plano de Evolução — Horas', 'Plano de Evolução — Semidedicado',
+  'Profissionais 100% Dedicados (Outsourcing)', 'SEO', 'Inbound Marketing', 'Performance',
 ];
 
 function Sec({ t }: { t: string }) {
@@ -37,6 +31,8 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   const [mounted, setMounted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const errorRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const [servicos, setServicos] = useState<string[]>(DEFAULT_SERVICOS);
 
   const [f, setF] = useState({
     razaoSocial: '', cnpj: '', aniversario: '',
@@ -57,6 +53,14 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   const [error, setError] = useState('');
 
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+  if (!slug) return;
+  fetch(`/api/public/company-settings?slug=${slug}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { if (data?.services?.length) setServicos(data.services); })
+    .catch(() => {});
+  }, [slug]);
 
   const set = (k: string) => (e: any) => {
     setF(p => ({ ...p, [k]: e.target.value }));
@@ -433,7 +437,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
             <Sec t="Serviços Contratados" />
             <div className="col-span-2 space-y-2" {...field('servicosContratados')}>
               {fieldErrors.servicosContratados && <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>}
-              {SERVICOS.map(s => (
+              {servicos.map(s => (
                 <label key={s} className="flex items-center gap-2.5 cursor-pointer p-2 border border-gray-100 rounded-lg hover:bg-green-50 transition-colors group">
                   <input
                     type="checkbox"

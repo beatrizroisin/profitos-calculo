@@ -79,31 +79,57 @@ export default function ConfiguracoesPage() {
   const { data: session } = useSession();
   const user = session?.user as any;
 
-  const [services,  setServices]  = useState<string[]>([]);
+  const [services, setServices] = useState<string[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
-  const [saved,     setSaved]     = useState('');
+  const [saved, setSaved] = useState('');
 
+  // Troca o useEffect atual por este:
   useEffect(() => {
-    const s = localStorage.getItem('profitos_services');
-    const p = localStorage.getItem('profitos_positions');
-    setServices(s  ? JSON.parse(s)  : DEFAULT_SERVICES);
-    setPositions(p ? JSON.parse(p) : DEFAULT_POSITIONS);
-  }, []);
+    async function load() {
+      const slug = user?.companySlug;
+      if (slug) {
+        try {
+          const r = await fetch(`/api/public/company-settings?slug=${slug}`);
+          if (r.ok) {
+            const data = await r.json();
+            setServices(data.services);
+            setPositions(data.positions);
+            return;
+          }
+        } catch { }
+      }
+      const s = localStorage.getItem('profitos_services');
+      const p = localStorage.getItem('profitos_positions');
+      setServices(s ? JSON.parse(s) : DEFAULT_SERVICES);
+      setPositions(p ? JSON.parse(p) : DEFAULT_POSITIONS);
+    }
+    load();
+  }, [user?.companySlug]);
 
-  function saveAll() {
-    localStorage.setItem('profitos_services',  JSON.stringify(services));
+  // Troca o saveAll atual por este:
+  async function saveAll() {
+    localStorage.setItem('profitos_services', JSON.stringify(services));
     localStorage.setItem('profitos_positions', JSON.stringify(positions));
+    try {
+      await fetch('/api/company-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ services, positions }),
+      });
+    } catch { }
     setSaved('Configurações salvas!');
     setTimeout(() => setSaved(''), 3000);
   }
 
-  function resetServices()  { setServices(DEFAULT_SERVICES); }
+
+  function resetServices() { setServices(DEFAULT_SERVICES); }
   function resetPositions() { setPositions(DEFAULT_POSITIONS); }
 
-  const slug     = user?.companySlug || '';
-  const origin   = typeof window !== 'undefined' ? window.location.origin : 'https://profitos-calculo.vercel.app';
-  const linkColab  = slug ? `${origin}/formulario/colaborador?empresa=${slug}` : '';
+  const slug = user?.companySlug || '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://profitos-calculo.vercel.app';
+  const linkColab = slug ? `${origin}/formulario/colaborador?empresa=${slug}` : '';
   const linkClient = slug ? `${origin}/formulario/cliente?empresa=${slug}` : '';
+  const linkPartner = slug ? `${origin}/formulario/parceiro?empresa=${slug}` : '';
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -121,7 +147,7 @@ export default function ConfiguracoesPage() {
             <div className="pt-3 border-t border-gray-100">
               <Button variant="danger" size="sm" onClick={() => signOut({ callbackUrl: '/login' })}>Sair da conta</Button>
             </div>
-          </div>
+          </div>f
         </Card>
         <Card title="Empresa">
           <div className="space-y-3 text-sm">
@@ -135,7 +161,7 @@ export default function ConfiguracoesPage() {
       <Card title="Tipos de serviço — clientes" subtitle="Serviços que aparecem como opção no cadastro de clientes e no formulário externo">
         <TagList
           items={services}
-          onRemove={i => setServices(s => s.filter((_,j) => j !== i))}
+          onRemove={i => setServices(s => s.filter((_, j) => j !== i))}
           onAdd={v => setServices(s => [...s, v])}
           placeholder="Ex: Consultoria em E-commerce"
           label="Serviços disponíveis"
@@ -154,7 +180,7 @@ export default function ConfiguracoesPage() {
       <Card title="Cargos e funções — colaboradores" subtitle="Cargos que aparecem como opção no cadastro de colaboradores">
         <TagList
           items={positions}
-          onRemove={i => setPositions(s => s.filter((_,j) => j !== i))}
+          onRemove={i => setPositions(s => s.filter((_, j) => j !== i))}
           onAdd={v => setPositions(s => [...s, v])}
           placeholder="Ex: Especialista em CRO"
           label="Cargos disponíveis"
@@ -218,6 +244,26 @@ export default function ConfiguracoesPage() {
                   Copiar
                 </button>
                 <a href={linkClient} target="_blank" rel="noreferrer"
+                  className="px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap">
+                  Abrir
+                </a>
+              </div>
+            </div>
+
+            {/* Formulário parceiro */}
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-[#1A6B4A] uppercase tracking-wider">Formulário para parceiros</span>
+                <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Público</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mb-2">Parceiros preenchem a própria ficha. Ficam como inativos até você ativar em /parceiros.</p>
+              <div className="flex items-center gap-2">
+                <input readOnly className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 font-mono" value={linkPartner} />
+                <button onClick={() => navigator.clipboard.writeText(linkPartner)}
+                  className="px-3 py-2 text-xs text-white bg-[#1A6B4A] border border-[#1A6B4A] rounded-lg hover:bg-green-800 transition-colors whitespace-nowrap font-medium">
+                  Copiar
+                </button>
+                <a href={linkPartner} target="_blank" rel="noreferrer"
                   className="px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap">
                   Abrir
                 </a>
