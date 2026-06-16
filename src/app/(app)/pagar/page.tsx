@@ -330,12 +330,12 @@ export default function PagarPage() {
                         {b.supplierName && <p className="text-[10px] text-gray-400">{b.supplierName}</p>}
                       </td>
                       <td className="py-3">{b.categoryName ? <span className="text-xs text-gray-600">{b.categoryName}</span> : <span className="text-[10px] text-gray-300">—</span>}</td>
-                      <td className="py-3 text-gray-500">{new Date(b.dueDate).toLocaleDateString('pt-BR')}</td>
+                      <td className="py-3 text-gray-500">{b.dueDate.slice(0, 10).split('-').reverse().join('/')}</td>
                       <td className="py-3"><Pill label={b.isRecurring ? 'Recorrente' : 'Eventual'} variant={b.isRecurring ? 'blue' : 'gray'} /></td>
                       <td className={`py-3 text-right font-medium tabular-nums ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>{BRL(b.amount)}</td>
                       <td className="py-3"><Pill label={DISPLAY_LABEL[displayStatus] || displayStatus} variant={DISPLAY_PILL[displayStatus] || 'gray'} /></td>
                       <td className="py-3 pr-5 text-gray-400 text-[10px]">
-                        {b.paymentDate ? new Date(b.paymentDate).toLocaleDateString('pt-BR') : '—'}
+                        {b.paymentDate ? b.paymentDate.slice(0, 10).split('-').reverse().join('/') : '—'}
                       </td>
                     </tr>
                   );
