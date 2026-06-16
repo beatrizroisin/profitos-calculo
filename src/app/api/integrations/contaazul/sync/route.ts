@@ -147,56 +147,44 @@ export async function POST(req: NextRequest) {
 
       const bills = await fetchBillsForMonth(accessToken, start, end);
 
-      for (const bill of bills) {
-        const amount      = parseFloat(bill.total ?? 0);
-        const amountPaid  = parseFloat(bill.pago ?? 0);
-        const dueDate     = new Date(bill.data_vencimento);
+for (const bill of bills) {
+  const amount      = parseFloat(bill.total ?? 0);
+  const amountPaid  = parseFloat(bill.pago ?? 0);
+  const dueDate     = new Date(bill.data_vencimento);
 
-        const rawStatus = (bill.status ?? '').toUpperCase();
-        const status    =
-          rawStatus === 'ACQUITTED'          ? 'PAID'
-          : rawStatus === 'RECEBIDO_PARCIAL' ? 'PARTIAL'
-          : rawStatus === 'PERDIDO'          ? 'CANCELLED'
-          : rawStatus === 'CANCELLED'        ? 'CANCELLED'
-          : 'PENDING'; 
+  // CORREÇÃO: usa o mês real do vencimento da conta, não o mês da query
+  const billMonthRef = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
 
-        const externalId   = String(bill.id);
-        const description  = bill.descricao ?? 'Sem descrição';
-        const categoryName = bill.categorias?.[0]?.nome ?? null;
-        const supplierName = bill.fornecedor?.nome ?? null;
+  const rawStatus = (bill.status ?? '').toUpperCase();
+  const status    =
+    rawStatus === 'ACQUITTED'          ? 'PAID'
+    : rawStatus === 'RECEBIDO_PARCIAL' ? 'PARTIAL'
+    : rawStatus === 'PERDIDO'          ? 'CANCELLED'
+    : rawStatus === 'CANCELLED'        ? 'CANCELLED'
+    : 'PENDING';
 
-        await prisma.contaAzulBill.upsert({
-          where:  { companyId_externalId: { companyId, externalId } },
-          update: {
-            description,
-            amount,
-            amountPaid,
-            dueDate,
-            paymentDate:  null,
-            status,
-            categoryName,
-            supplierName,
-            notes:        null,
-            monthRef,
-            updatedAt:    new Date(),
-          },
-          create: {
-            companyId,
-            externalId,
-            description,
-            amount,
-            amountPaid,
-            dueDate,
-            paymentDate:  null,
-            status,
-            isRecurring:  false,
-            categoryName,
-            supplierName,
-            notes:        null,
-            monthRef,
-          },
-        });
-      }
+  const externalId   = String(bill.id);
+  const description  = bill.descricao ?? 'Sem descrição';
+  const categoryName = bill.categorias?.[0]?.nome ?? null;
+  const supplierName = bill.fornecedor?.nome ?? null;
+
+  await prisma.contaAzulBill.upsert({
+    where:  { companyId_externalId: { companyId, externalId } },
+    update: {
+      description, amount, amountPaid, dueDate,
+      paymentDate: null, status, categoryName, supplierName,
+      notes: null,
+      monthRef:  billMonthRef, // ← data real da conta
+      updatedAt: new Date(),
+    },
+    create: {
+      companyId, externalId, description, amount, amountPaid, dueDate,
+      paymentDate: null, status, isRecurring: false,
+      categoryName, supplierName, notes: null,
+      monthRef: billMonthRef, // ← data real da conta
+    },
+  });
+}
 
       synced.push(`${monthRef}: ${bills.length} contas`);
     }
