@@ -75,11 +75,17 @@ const TYPE_COLOR: Record<string,string> = {
 const AVC = ['#1A6B4A','#2563EB','#7C3AED','#DC3545','#E67E22','#0891B2','#DB2777','#65A30D'];
 const ini = (n:string) => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const avc = (id:string) => AVC[parseInt(id.replace(/\D/g,'').slice(-2)||'0')%AVC.length];
-const fmt = (d:string|null|undefined) => {
+const fmt = (d: string | null | undefined) => {
   if (!d) return '—';
+  // Pega só os 10 primeiros chars (YYYY-MM-DD) e parseia como data local
+  const clean = d.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [y, m, day] = clean.split('-').map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString('pt-BR');
+  }
   const date = new Date(d);
   if (isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  return date.toLocaleDateString('pt-BR');
 };
 // ─── Section title ────────────────────────────────────────────────────────────
 function SecTitle({ children }: { children: React.ReactNode }) {
