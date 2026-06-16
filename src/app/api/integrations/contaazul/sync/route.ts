@@ -150,10 +150,8 @@ export async function POST(req: NextRequest) {
 for (const bill of bills) {
   const amount      = parseFloat(bill.total ?? 0);
   const amountPaid  = parseFloat(bill.pago ?? 0);
-  const dueDate     = new Date(bill.data_vencimento);
-
-  // CORREÇÃO: usa o mês real do vencimento da conta, não o mês da query
-  const billMonthRef = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
+const dueDate      = new Date(bill.data_vencimento);
+const billMonthRef = String(bill.data_vencimento).slice(0, 7);
 
   const rawStatus = (bill.status ?? '').toUpperCase();
   const status    =
