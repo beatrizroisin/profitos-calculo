@@ -79,7 +79,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const data = clientSchema.parse(body);
+
+    // O form envia startDate/isRecurring/etc. dentro de services[0]; extrai para raiz
+    const { services, ...rest } = body;
+    const firstService = Array.isArray(services) && services.length > 0 ? services[0] : null;
+    const processedBody = {
+      ...rest,
+      startDate:          rest.startDate          ?? firstService?.startDate          ?? new Date().toISOString().slice(0, 10),
+      isRecurring:        rest.isRecurring        ?? firstService?.isRecurring        ?? true,
+      totalInstallments:  rest.totalInstallments  ?? firstService?.totalInstallments  ?? 12,
+      currentInstallment: rest.currentInstallment ?? firstService?.currentInstallment ?? 1,
+      dueDay:             rest.dueDay             ?? firstService?.dueDay             ?? 5,
+      riskLevel:          rest.riskLevel          ?? firstService?.riskLevel          ?? 'LOW',
+    };
+
+    const data = clientSchema.parse(processedBody);
     const netRevenue = data.grossRevenue * (1 - data.taxRate / 100);
 
     const client = await prisma.client.create({
@@ -125,6 +139,7 @@ export async function POST(req: NextRequest) {
         regimeTributario:    data.regimeTributario   ?? null,
         tipoProjeto:         data.tipoProjeto        ?? null,
         servicosContratados: data.servicosContratados ?? null,
+        services:            services ?? undefined,
       },
     });
 
