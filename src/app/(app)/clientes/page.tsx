@@ -16,6 +16,7 @@ interface ServiceItem {
   startDate: string;
   dueDay: number;
   riskLevel: string;
+  
 }
 
 interface Client {
@@ -32,6 +33,7 @@ interface Client {
   formaPagamento?: string; regimeTributario?: string;
   tipoProjeto?: string; servicosContratados?: string;
   aniversario?: string;
+  repEmail?: string;
 }
 
 const EMPTY_SERVICE = (): ServiceItem => ({
@@ -59,6 +61,7 @@ const EMPTY: Omit<Client, 'id'> = {
   projNome: '', projEmail: '', projTelefone: '',
   formaPagamento: 'Boleto', regimeTributario: '', tipoProjeto: '', servicosContratados: '',
   aniversario: '',
+  repEmail: '',
 };
 
 const STATUS_PILL: Record<string, any> = { ACTIVE: 'green', INACTIVE: 'gray', PROSPECT: 'amber', PIPELINE: 'blue', CHURNED: 'red' };
@@ -509,6 +512,10 @@ export default function ClientesPage() {
                 <div className="col-span-2">
                   <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nome</label>
                   <input className={I} placeholder="Nome completo" value={form.repNome||''} onChange={e => F('repNome', e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">E-mail do Representante Legal</label>
+                  <input type="email" className={I} placeholder="representante@empresa.com" value={form.repEmail||''} onChange={e => F('repEmail', e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">RG</label>

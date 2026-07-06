@@ -296,6 +296,7 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
               {fieldErrors.repNome && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.repNome}</p>}
               <p className={HELP}>Pessoa que assinará digitalmente ou fisicamente o documento.</p>
             </div>
+
             <div {...field('aniversario')}>
               <label className={L}>Aniversário do Representante Legal *</label>
               <input type="date" className={inp('aniversario')} value={f.aniversario} onChange={set('aniversario')} />

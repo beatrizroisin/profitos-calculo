@@ -142,6 +142,7 @@ model Client {
   repRG                   String?
   repCPF                  String?
   repEstadoCivil          String?
+  repEmail                String?
   // Testemunha
   testNome                String?
   testCPF                 String?
