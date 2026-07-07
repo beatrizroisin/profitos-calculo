@@ -471,40 +471,40 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
               {fieldErrors.tipoProjeto && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.tipoProjeto}</p>}
             </div>
            
-<Sec t="Serviços Contratados" />
-<div className="col-span-2 space-y-4" {...field('servicosContratados')}>
-  {fieldErrors.servicosContratados && (
-    <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>
-  )}
-  {SERVICOS_AGRUPADOS.map(grupo => (
-    <div key={grupo.categoria}>
-      <div className="flex items-center gap-2 mb-2 mt-1">
-        <span className="text-xs font-bold text-gray-700">{grupo.categoria}</span>
-        <div className="flex-1 h-px bg-gray-100"/>
-      </div>
-      <div className="space-y-1 pl-2">
-        {grupo.itens.map(s => (
-          <label key={s}
-            className="flex items-center gap-2.5 cursor-pointer p-2 border border-gray-100 rounded-lg hover:bg-green-50 transition-colors group">
-            <input
-              type="checkbox"
-              checked={f.servicosContratados.includes(s)}
-              onChange={() => setF(p => ({
-                ...p,
-                servicosContratados: p.servicosContratados.includes(s)
-                  ? p.servicosContratados.filter(x => x !== s)
-                  : [...p.servicosContratados, s],
-              }))}
-              className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer flex-shrink-0"
-            />
-            <span className="text-sm text-gray-700 group-hover:text-gray-900">{s}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  ))}
-</div>
+</div> {/* fecha grid cols-2 — ANTES dos serviços */}
 
+          <Sec t="Serviços Contratados" />
+          <div className="space-y-4 mt-2" ref={(el) => { errorRefs.current['servicosContratados'] = el; }}>
+            {fieldErrors.servicosContratados && (
+              <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>
+            )}
+            {SERVICOS_AGRUPADOS.map(grupo => (
+              <div key={grupo.categoria}>
+                <div className="flex items-center gap-2 mb-2 mt-1">
+                  <span className="text-xs font-bold text-gray-700">{grupo.categoria}</span>
+                  <div className="flex-1 h-px bg-gray-100"/>
+                </div>
+                <div className="space-y-1 pl-2">
+                  {grupo.itens.map(s => (
+                    <label key={s}
+                      className="flex items-center gap-2.5 cursor-pointer p-2 border border-gray-100 rounded-lg hover:bg-green-50 transition-colors group">
+                      <input
+                        type="checkbox"
+                        checked={f.servicosContratados.includes(s)}
+                        onChange={() => setF(p => ({
+                          ...p,
+                          servicosContratados: p.servicosContratados.includes(s)
+                            ? p.servicosContratados.filter(x => x !== s)
+                            : [...p.servicosContratados, s],
+                        }))}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer flex-shrink-0"
+                      />
+                      <span className="text-sm text-gray-700 group-hover:text-gray-900">{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           {error && (
