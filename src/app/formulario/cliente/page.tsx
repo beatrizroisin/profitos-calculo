@@ -7,14 +7,59 @@ const IE = 'w-full px-3 py-2.5 border border-red-400 rounded-lg text-sm bg-white
 const L = 'block text-[10px] font-bold text-gray-500 uppercase mb-1';
 const HELP = 'text-[9px] text-gray-400 mt-1 italic leading-tight';
 
-const DEFAULT_SERVICOS = [
-  'Migração para VTEX IO com Redesign', 'Arquitetura de E-commerce',
-  'Implantação de E-commerce', 'Pacote de Evolução Básico — Suporte + Manutenção do Front end',
-  'Pacote de Evolução Intermediário — Growth (CRO+SEO) + Suporte + Manutenção + UX',
-  'Pacote de Evolução Avançado — Performance + Inbound + Growth + Suporte + UX',
-  'Plano de Evolução — Horas', 'Plano de Evolução — Semidedicado',
-  'Profissionais 100% Dedicados (Outsourcing)', 'SEO', 'Inbound Marketing', 'Performance',
+const SERVICOS_AGRUPADOS = [
+  {
+    categoria: '🚀 Projetos',
+    itens: [
+      'Implantação de E-commerce',
+      'Desenvolvimento de Site Institucional',
+      'Desenvolvimento de Landing Page',
+      'Migração de Plataforma',
+      'Redesign / Reestruturação de Site',
+      'Arquitetura Técnica',
+    ],
+  },
+  {
+    categoria: '🛠️ Sustentação',
+    itens: [
+      'Suporte à Plataforma',
+      'Evolução Contínua',
+      'Ajustes Pontuais',
+    ],
+  },
+  {
+    categoria: '📈 Growth',
+    itens: [
+      'SEO',
+      'CRO',
+      'Performance de mídias pagas',
+      'CRM & Automação',
+      'Social Media',
+      'Produção de Conteúdo',
+    ],
+  },
+  {
+    categoria: '👥 Outsourcing',
+    itens: [
+      'Profissional Dedicado',
+      'Squad Dedicada',
+      'Alocação Parcial de Especialistas',
+    ],
+  },
+  {
+    categoria: '🧠 Consultoria',
+    itens: [
+      'Diagnóstico',
+      'Consultoria Estratégica',
+      'Auditoria Técnica',
+      'Auditoria de SEO',
+      'Auditoria de Performance',
+    ],
+  },
 ];
+
+
+const DEFAULT_SERVICOS = SERVICOS_AGRUPADOS.flatMap(g => g.itens);
 
 function Sec({ t }: { t: string }) {
   return (
@@ -426,26 +471,48 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
               {fieldErrors.tipoProjeto && <p className="text-[10px] text-red-500 mt-1">{fieldErrors.tipoProjeto}</p>}
             </div>
            
-            <Sec t="Serviços Contratados" />
-            <div className="col-span-2 space-y-2" {...field('servicosContratados')}>
-              {fieldErrors.servicosContratados && <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>}
-              {servicos.map(s => (
-                <label key={s} className="flex items-center gap-2.5 cursor-pointer p-2 border border-gray-100 rounded-lg hover:bg-green-50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={f.servicosContratados.includes(s)}
-                    onChange={() => setF(p => ({
-                      ...p,
-                      servicosContratados: p.servicosContratados.includes(s)
-                        ? p.servicosContratados.filter(x => x !== s)
-                        : [...p.servicosContratados, s],
-                    }))}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer flex-shrink-0"
-                  />
-                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{s}</span>
-                </label>
-              ))}
-            </div>
+<Sec t="Serviços Contratados" />
+<div className="col-span-2 space-y-4" {...field('servicosContratados')}>
+  {fieldErrors.servicosContratados && (
+    <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>
+  )}
+  {(servicos.length > 0
+    ? // Se vieram serviços customizados do banco (lista flat), agrupa genericamente
+      SERVICOS_AGRUPADOS.map(grupo => ({
+        categoria: grupo.categoria,
+        itens: grupo.itens.filter(item => servicos.includes(item)),
+      })).filter(g => g.itens.length > 0)
+    : SERVICOS_AGRUPADOS
+  ).map(grupo => (
+    <div key={grupo.categoria}>
+      {/* Cabeçalho da categoria — não clicável */}
+      <div className="flex items-center gap-2 mb-2 mt-1">
+        <span className="text-xs font-bold text-gray-700">{grupo.categoria}</span>
+        <div className="flex-1 h-px bg-gray-100"/>
+      </div>
+      {/* Itens com checkbox */}
+      <div className="space-y-1 pl-2">
+        {grupo.itens.map(s => (
+          <label key={s}
+            className="flex items-center gap-2.5 cursor-pointer p-2 border border-gray-100 rounded-lg hover:bg-green-50 transition-colors group">
+            <input
+              type="checkbox"
+              checked={f.servicosContratados.includes(s)}
+              onChange={() => setF(p => ({
+                ...p,
+                servicosContratados: p.servicosContratados.includes(s)
+                  ? p.servicosContratados.filter(x => x !== s)
+                  : [...p.servicosContratados, s],
+              }))}
+              className="h-4 w-4 rounded border-gray-300 text-green-600 cursor-pointer flex-shrink-0"
+            />
+            <span className="text-sm text-gray-700 group-hover:text-gray-900">{s}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  ))}
+</div>
 
           </div>
 
