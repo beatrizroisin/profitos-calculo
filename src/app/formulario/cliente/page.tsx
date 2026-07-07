@@ -9,7 +9,7 @@ const HELP = 'text-[9px] text-gray-400 mt-1 italic leading-tight';
 
 const SERVICOS_AGRUPADOS = [
   {
-    categoria: '🚀 Projetos',
+    categoria: 'Projetos',
     itens: [
       'Implantação de E-commerce',
       'Desenvolvimento de Site Institucional',
@@ -20,7 +20,7 @@ const SERVICOS_AGRUPADOS = [
     ],
   },
   {
-    categoria: '🛠️ Sustentação',
+    categoria: 'Sustentação',
     itens: [
       'Suporte à Plataforma',
       'Evolução Contínua',
@@ -28,7 +28,7 @@ const SERVICOS_AGRUPADOS = [
     ],
   },
   {
-    categoria: '📈 Growth',
+    categoria: 'Growth',
     itens: [
       'SEO',
       'CRO',
@@ -39,7 +39,7 @@ const SERVICOS_AGRUPADOS = [
     ],
   },
   {
-    categoria: '👥 Outsourcing',
+    categoria: 'Outsourcing',
     itens: [
       'Profissional Dedicado',
       'Squad Dedicada',
@@ -47,7 +47,7 @@ const SERVICOS_AGRUPADOS = [
     ],
   },
   {
-    categoria: '🧠 Consultoria',
+    categoria: 'Consultoria',
     itens: [
       'Diagnóstico',
       'Consultoria Estratégica',
@@ -476,21 +476,12 @@ export default function FormCliente({ searchParams }: { searchParams: { empresa?
   {fieldErrors.servicosContratados && (
     <p className="text-[10px] text-red-500 mb-2">{fieldErrors.servicosContratados}</p>
   )}
-  {(servicos.length > 0
-    ? // Se vieram serviços customizados do banco (lista flat), agrupa genericamente
-      SERVICOS_AGRUPADOS.map(grupo => ({
-        categoria: grupo.categoria,
-        itens: grupo.itens.filter(item => servicos.includes(item)),
-      })).filter(g => g.itens.length > 0)
-    : SERVICOS_AGRUPADOS
-  ).map(grupo => (
+  {SERVICOS_AGRUPADOS.map(grupo => (
     <div key={grupo.categoria}>
-      {/* Cabeçalho da categoria — não clicável */}
       <div className="flex items-center gap-2 mb-2 mt-1">
         <span className="text-xs font-bold text-gray-700">{grupo.categoria}</span>
         <div className="flex-1 h-px bg-gray-100"/>
       </div>
-      {/* Itens com checkbox */}
       <div className="space-y-1 pl-2">
         {grupo.itens.map(s => (
           <label key={s}
